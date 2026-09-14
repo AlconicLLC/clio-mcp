@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Optional Neon/Postgres audit sink under `src/fork/`, started with
+  `node build/fork/start.js` (or `npm run start:neon`) when `DATABASE_URL` is
+  set. The default `npm start` path is unchanged, so a fork can keep audit
+  rows off the container disk without patching `src/index.ts`.
+
 ## [2.3.0] - 2026-09-07
 
 Matter stages and `create_custom_field`, previously staged and unverified,

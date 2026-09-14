@@ -20,8 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build": "tsc --project tsconfig.build.json && node -e \"require('fs').chmodSync('build/index.js', 0o755)\"",
+    "build": "tsc --project tsconfig.build.json && node -e \"const fs=require('fs'); fs.chmodSync('build/index.js', 0o755); fs.chmodSync('build/fork/start.js', 0o755)\"",
     "start": "node build/index.js",
+    "start:neon": "node build/fork/start.js",
     "inspect": "npx @modelcontextprotocol/inspector node build/index.js",
     "prepublishOnly": "npm run build && npm test && npm run verify:no-secrets",
     "verify:no-secrets": "node scripts/verify-no-secrets.mjs"
@@ -67,11 +68,13 @@
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "open": "^11.0.0",
+    "pg": "^8.16.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.15.5",
     "@vitest/coverage-v8": "^4.1.7",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
