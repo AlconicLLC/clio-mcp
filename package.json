@@ -20,7 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build": "tsc --project tsconfig.build.json && node -e \"const fs=require('fs'); fs.chmodSync('build/index.js', 0o755); fs.chmodSync('build/fork/start.js', 0o755)\"",
+    "build": "tsc --project tsconfig.build.json && node -e \"const fs=require('fs'); fs.chmodSync('build/index.js', 0o755); fs.chmodSync('build/fork/start.js', 0o755); fs.mkdirSync('build/fork/audit-ui',{recursive:true}); fs.copyFileSync('src/fork/audit-ui/index.html','build/fork/audit-ui/index.html')\"",
     "start": "node build/index.js",
     "start:neon": "node build/fork/start.js",
     "inspect": "npx @modelcontextprotocol/inspector node build/index.js",

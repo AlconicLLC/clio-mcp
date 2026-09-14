@@ -90,6 +90,24 @@ describe("createNeonAuditSink", () => {
     expect(result.entries[0].timestamp).toBe("2026-09-14T12:00:00.000Z");
   });
 
+  it("maps tool and outcome onto WHERE clauses", async () => {
+    const pool = mockPool();
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ n: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const sink = createNeonAuditSink("postgres://unused", pool);
+    await sink.read({
+      tool: "get_matter",
+      outcome: "error",
+      limit: 10,
+      offset: 0,
+    });
+    const [countSql, countParams] = pool.query.mock.calls[0];
+    expect(countSql).toContain("tool =");
+    expect(countSql).toContain("outcome =");
+    expect(countParams).toEqual(["get_matter", "error"]);
+  });
+
   it("reads with no filters", async () => {
     const pool = mockPool();
     pool.query
