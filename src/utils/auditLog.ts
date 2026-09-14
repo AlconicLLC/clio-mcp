@@ -76,6 +76,9 @@ export interface AuditFilter {
   /** Restrict to one caller. Injected automatically from the session context when it carries a userId. */
   user_id?: string;
   session_id?: string;
+  /** Exact tool name, e.g. `get_matter`. */
+  tool?: string;
+  outcome?: AuditEntry["outcome"];
 }
 /** @deprecated Use AuditFilter. Kept for 2.x compatibility. */
 export type AuditLogFilter = AuditFilter;
@@ -224,6 +227,8 @@ export function createFileAuditSink(file: string = DEFAULT_AUDIT_FILE): AuditSin
         if (filter.matter_id !== undefined && entry.matter_id !== filter.matter_id) continue;
         if (filter.user_id !== undefined && entry.user_id !== filter.user_id) continue;
         if (filter.session_id !== undefined && entry.session_id !== filter.session_id) continue;
+        if (filter.tool && entry.tool !== filter.tool) continue;
+        if (filter.outcome && entry.outcome !== filter.outcome) continue;
         matched.push(entry as AuditEntry);
       }
       return {

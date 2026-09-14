@@ -92,6 +92,12 @@ function buildWhere(filter: AuditFilter): { sql: string; params: unknown[] } {
   if (filter.user_id) {
     clauses.push(`user_id = ${placeholder(filter.user_id)}`);
   }
+  if (filter.tool) {
+    clauses.push(`tool = ${placeholder(filter.tool)}`);
+  }
+  if (filter.outcome) {
+    clauses.push(`outcome = ${placeholder(filter.outcome)}`);
+  }
 
   return {
     sql: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",

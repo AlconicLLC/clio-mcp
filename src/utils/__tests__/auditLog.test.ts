@@ -102,6 +102,19 @@ describe("readAuditLog", () => {
     expect(result.total_matched).toBe(2);
   });
 
+  it("filters by tool and outcome", async () => {
+    mockReadFile.mockResolvedValue(toJSONL(
+      makeEntry({ tool: "get_matter", outcome: "success" }),
+      makeEntry({ tool: "get_matter", outcome: "error" }),
+      makeEntry({ tool: "list_matters", outcome: "success" }),
+    ));
+    const byTool = await readAuditLog({ tool: "get_matter" });
+    expect(byTool.total_matched).toBe(2);
+    const byBoth = await readAuditLog({ tool: "get_matter", outcome: "error" });
+    expect(byBoth.entries).toHaveLength(1);
+    expect(byBoth.entries[0].outcome).toBe("error");
+  });
+
   it("paginates with limit", async () => {
     const entries = Array.from({ length: 5 }, (_, i) => makeEntry({ tool: `tool_${i}` }));
     mockReadFile.mockResolvedValue(toJSONL(...entries));

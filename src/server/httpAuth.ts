@@ -10,11 +10,12 @@ export interface HttpAuthConfig {
 }
 
 /**
- * Paths reachable without the API key: the health probe, and the OAuth
- * redirect target, because Clio's browser redirect cannot carry a bearer
- * token. Everything else, including unknown paths, requires the key.
+ * Paths reachable without the API key: the health probe, the OAuth redirect
+ * target (Clio's browser redirect cannot carry a bearer token), and the audit
+ * viewer HTML shell (the JSON/CSV under /audit/api still require the key).
+ * Everything else, including unknown paths, requires the key.
  */
-export const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/health", "/oauth/callback"]);
+export const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/health", "/oauth/callback", "/audit", "/audit/"]);
 
 /**
  * Resolve the HTTP-mode auth configuration from the environment, or throw a

@@ -62,6 +62,17 @@ describe("HTTP auth gate with MCP_API_KEY set", () => {
     }
   });
 
+  it("serves the audit viewer HTML without a key, and keeps the API gated", async () => {
+    const page = await fetch(`${srv.base}/audit`);
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-type")).toMatch(/html/);
+    const html = await page.text();
+    expect(html).toContain("Privilege log");
+
+    const api = await fetch(`${srv.base}/audit/api/entries`);
+    expect(api.status).toBe(401);
+  });
+
   it("lets a request with the correct key past the gate", async () => {
     const res = await fetch(`${srv.base}/mcp`, { headers: { ...MCP_HEADERS, Authorization: `Bearer ${KEY}` } });
     expect(res.status).not.toBe(401);

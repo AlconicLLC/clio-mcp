@@ -82,7 +82,7 @@ describe("isAuthorized", () => {
 });
 
 describe("PUBLIC_PATHS", () => {
-  it("only exempts the health probe and the OAuth redirect target", () => {
-    expect([...PUBLIC_PATHS].sort()).toEqual(["/health", "/oauth/callback"]);
+  it("exempts health, OAuth callback, and the audit viewer HTML", () => {
+    expect([...PUBLIC_PATHS].sort()).toEqual(["/audit", "/audit/", "/health", "/oauth/callback"]);
   });
 });
