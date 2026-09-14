@@ -56,10 +56,28 @@ describe("HTTP auth gate with MCP_API_KEY set", () => {
   });
 
   it("requires the key on unknown paths too (no route enumeration)", async () => {
-    for (const path of ["/", "/sse", "/messages", "/mcp/", "/HEALTH", "/admin"]) {
+    for (const path of ["/sse", "/messages", "/mcp/", "/HEALTH", "/admin"]) {
       const res = await fetch(`${srv.base}${path}`);
       expect(res.status, path).toBe(401);
+      expect(res.headers.get("www-authenticate")).toBe('Bearer realm="clio-mcp"');
     }
+  });
+
+  it("advertises Bearer auth on a 401 for /mcp", async () => {
+    const res = await fetch(`${srv.base}/mcp`, { headers: MCP_HEADERS });
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toBe('Bearer realm="clio-mcp"');
+  });
+
+  it("keeps / reachable without a key so a host health probe on / succeeds", async () => {
+    const res = await fetch(`${srv.base}/`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, service: "clio-mcp", mcp: "/mcp" });
+  });
+
+  it("lets OAuth discovery 404 instead of 401", async () => {
+    const res = await fetch(`${srv.base}/.well-known/oauth-authorization-server`);
+    expect(res.status).toBe(404);
   });
 
   it("lets a request with the correct key past the gate", async () => {
@@ -97,5 +115,11 @@ describe("HTTP auth gate with the MCP_ALLOW_UNAUTHENTICATED opt-out", () => {
     const res = await fetch(`${srv.base}/health`);
     expect(res.status).toBe(200);
     await res.text();
+  });
+
+  it("still serves the landing page on /", async () => {
+    const res = await fetch(`${srv.base}/`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, service: "clio-mcp" });
   });
 });

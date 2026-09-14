@@ -32,3 +32,4 @@ Only the latest 2.x minor receives security fixes. Upgrade with `npm install -g 
 - Keep `MCP_API_KEY` at 24 characters or more and rotate it when staff change.
 - Set `READ_ONLY=true` if the firm has not decided to let Claude write to Clio yet.
 - The audit log is append-only by convention, not by enforcement. Ship it to storage the firm controls if it has to survive a dispute.
+- A public host (Railway, a VPS) changes the trust model: Claude.ai talks to that host, and that host talks to Clio. Matter data and Clio tokens then live in that process. Stay on one replica; HTTP sessions are in memory. See the README section "Deploy on Railway and connect Claude.ai".

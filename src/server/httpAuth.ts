@@ -10,11 +10,25 @@ export interface HttpAuthConfig {
 }
 
 /**
- * Paths reachable without the API key: the health probe, and the OAuth
- * redirect target, because Clio's browser redirect cannot carry a bearer
- * token. Everything else, including unknown paths, requires the key.
+ * Paths reachable without the API key.
+ *
+ * `/` is public so a host's default health probe (Railway hits `/` unless
+ * you set healthcheckPath) does not mark a healthy process as failed.
+ * `/health` is the dedicated probe. `/oauth/callback` is public because
+ * Clio's browser redirect cannot carry a bearer token.
+ *
+ * `/.well-known/*` is treated as public (see isPublicPath) so Claude.ai's
+ * OAuth discovery gets a 404 instead of a 401 that looks like "this
+ * server wants MCP OAuth". This connector authenticates MCP clients with
+ * MCP_API_KEY, not an authorization server.
  */
-export const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/health", "/oauth/callback"]);
+export const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", "/health", "/oauth/callback"]);
+
+/** True when the path is reachable without MCP_API_KEY. */
+export function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PATHS.has(pathname)) return true;
+  return pathname === "/.well-known" || pathname.startsWith("/.well-known/");
+}
 
 /**
  * Resolve the HTTP-mode auth configuration from the environment, or throw a
@@ -58,11 +72,14 @@ export function isAuthorized(config: HttpAuthConfig, authorizationHeader: string
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-/** Express middleware: 401 on every path except PUBLIC_PATHS unless the bearer key matches. */
+/** Express middleware: 401 on every path except public ones unless the bearer key matches. */
 export function createApiKeyMiddleware(config: HttpAuthConfig): express.RequestHandler {
   return (req, res, next) => {
-    if (PUBLIC_PATHS.has(req.path)) { next(); return; }
+    if (isPublicPath(req.path)) { next(); return; }
     if (!isAuthorized(config, req.headers.authorization)) {
+      // RFC 6750. Claude.ai uses this (and request-header config) rather than
+      // MCP OAuth discovery when the server is API-key gated.
+      res.setHeader("WWW-Authenticate", 'Bearer realm="clio-mcp"');
       res.status(401).json({ error: "Unauthorized" });
       return;
     }

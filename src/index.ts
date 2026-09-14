@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { getClioRegion, CLIO_REGION_BASE_URLS } from './utils/clioRegion.js';
 import { resolveHttpAuthConfig } from './server/httpAuth.js';
 import { validateAuthEnv } from './config/startupValidation.js';
+import { resolveMcpBaseUrl } from './config/mcpBaseUrl.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -49,8 +50,8 @@ async function main() {
         await server.connect(transport);
         console.error("Clio MCP server running on stdio");
     } else {
-        if (!process.env.MCP_BASE_URL) {
-            fatal("MCP_BASE_URL is required in HTTP mode (e.g. https://mcp.example.com). Set TRANSPORT=stdio for local single-user mode.");
+        if (!resolveMcpBaseUrl()) {
+            fatal("MCP_BASE_URL is required in HTTP mode (e.g. https://mcp.example.com). On Railway, RAILWAY_PUBLIC_DOMAIN is accepted as a fallback. Set TRANSPORT=stdio for local single-user mode.");
         }
         // MCP_API_KEY is mandatory in HTTP mode (min 24 chars). Only MCP_ALLOW_UNAUTHENTICATED=true
         // (local development) lets the server start without it, with a loud warning.

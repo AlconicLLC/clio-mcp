@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveHttpAuthConfig, isAuthorized, MIN_API_KEY_LENGTH, PUBLIC_PATHS } from "../httpAuth.js";
+import { resolveHttpAuthConfig, isAuthorized, isPublicPath, MIN_API_KEY_LENGTH, PUBLIC_PATHS } from "../httpAuth.js";
 
 const GOOD_KEY = "a".repeat(32);
 
@@ -82,7 +82,27 @@ describe("isAuthorized", () => {
 });
 
 describe("PUBLIC_PATHS", () => {
-  it("only exempts the health probe and the OAuth redirect target", () => {
-    expect([...PUBLIC_PATHS].sort()).toEqual(["/health", "/oauth/callback"]);
+  it("exempts the landing page, health probe, and OAuth redirect target", () => {
+    expect([...PUBLIC_PATHS].sort()).toEqual(["/", "/health", "/oauth/callback"]);
+  });
+});
+
+describe("isPublicPath", () => {
+  it("matches the named public routes", () => {
+    expect(isPublicPath("/")).toBe(true);
+    expect(isPublicPath("/health")).toBe(true);
+    expect(isPublicPath("/oauth/callback")).toBe(true);
+  });
+
+  it("treats OAuth discovery paths as public so they 404 instead of 401", () => {
+    expect(isPublicPath("/.well-known/oauth-authorization-server")).toBe(true);
+    expect(isPublicPath("/.well-known/oauth-protected-resource")).toBe(true);
+    expect(isPublicPath("/.well-known")).toBe(true);
+  });
+
+  it("still gates the MCP endpoint and unknown paths", () => {
+    expect(isPublicPath("/mcp")).toBe(false);
+    expect(isPublicPath("/admin")).toBe(false);
+    expect(isPublicPath("/HEALTH")).toBe(false);
   });
 });

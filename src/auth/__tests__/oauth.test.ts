@@ -65,6 +65,21 @@ describe("buildAuthorizationUrl", () => {
     vi.stubEnv("CLIO_AUTH_URL", "https://proxy.example.com/oauth/authorize");
     expect(new URL(buildAuthorizationUrl("s").url).origin).toBe("https://proxy.example.com");
   });
+
+  it("strips a trailing slash from MCP_BASE_URL so Clio sees a registered redirect", () => {
+    vi.stubEnv("MCP_BASE_URL", "https://mcp.example.com/");
+    const parsed = new URL(buildAuthorizationUrl("sess-1").url);
+    expect(parsed.searchParams.get("redirect_uri")).toBe("https://mcp.example.com/oauth/callback");
+  });
+
+  it("falls back to Railway's public domain when MCP_BASE_URL is unset", () => {
+    vi.stubEnv("MCP_BASE_URL", "");
+    vi.stubEnv("RAILWAY_PUBLIC_DOMAIN", "clio-mcp-prod.up.railway.app");
+    const parsed = new URL(buildAuthorizationUrl("sess-1").url);
+    expect(parsed.searchParams.get("redirect_uri")).toBe(
+      "https://clio-mcp-prod.up.railway.app/oauth/callback"
+    );
+  });
 });
 
 describe("token endpoint per region", () => {

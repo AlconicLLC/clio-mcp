@@ -2,7 +2,6 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { Entry } from "@napi-rs/keyring";
 import type { ClioTokens } from "./oauth.js";
 
 const TOKEN_DIR = path.join(os.homedir(), ".clio-mcp");
@@ -15,6 +14,17 @@ const AUTH_TAG_LENGTH = 16;
 const KEYCHAIN_SERVICE = "clio-mcp";
 const KEYCHAIN_ACCOUNT = "encryption-key";
 
+/**
+ * Load the OS keychain binding on demand. A static import would crash the
+ * whole process on a host where the native addon cannot load (headless
+ * Linux, some containers). HTTP mode never needs the keychain — tokens
+ * live in the session — but authTools still imports this module.
+ */
+async function openKeychain(): Promise<{ getPassword: () => string | null; setPassword: (v: string) => void }> {
+  const { Entry } = await import("@napi-rs/keyring");
+  return new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
+}
+
 export async function getEncryptionKey(): Promise<Buffer> {
   const envKey = process.env.ENCRYPTION_KEY;
 
@@ -23,7 +33,7 @@ export async function getEncryptionKey(): Promise<Buffer> {
     if (envKey.length !== 64)
       throw new Error(`ENCRYPTION_KEY must be 64 hex chars (32 bytes for AES-256). Got ${envKey.length}.`);
     try {
-      const entry = new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
+      const entry = await openKeychain();
       if (!entry.getPassword()) {
         entry.setPassword(envKey);
         console.error("[tokenStorage] Migrated ENCRYPTION_KEY from env to OS keychain. You may remove it from .env.");
@@ -36,7 +46,7 @@ export async function getEncryptionKey(): Promise<Buffer> {
 
   // 2. OS keychain (macOS / Windows Credential Manager / desktop Linux)
   try {
-    const entry = new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
+    const entry = await openKeychain();
     let keyHex = entry.getPassword();
     if (!keyHex) {
       keyHex = crypto.randomBytes(32).toString("hex");

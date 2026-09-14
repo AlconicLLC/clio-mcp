@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Railway + Claude.ai hosting path.** `Dockerfile`, `railway.toml` (health-check `/health`, one replica), and a README section covering why Desktop/stdio works, why claude.ai needs a public Streamable HTTP URL, the two-layer auth (`MCP_API_KEY` request header, then the `authenticate` tool for Clio), and the trust-model change of running off-machine.
+- HTTP mode accepts Railway's `RAILWAY_PUBLIC_DOMAIN` when `MCP_BASE_URL` is unset, and strips trailing slashes so `https://host/` does not produce a Clio redirect of `//oauth/callback`.
+- `/` is a public landing probe (`{"ok":true,"service":"clio-mcp",...}`) so a host that health-checks the root does not mark a running process as failed. `/.well-known/*` is also public so Claude.ai's OAuth discovery gets a 404 instead of a 401. 401 responses on gated paths send `WWW-Authenticate: Bearer realm="clio-mcp"`.
+- The HTTP server binds `0.0.0.0` so a container proxy can reach it.
+
+### Changed
+- `@napi-rs/keyring` is imported on demand. A host where the native addon cannot load (headless Linux, some containers) no longer crashes the process at import time; HTTP mode never needed the keychain.
+
 ## [2.3.0] - 2026-09-07
 
 Matter stages and `create_custom_field`, previously staged and unverified,

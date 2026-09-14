@@ -19,6 +19,7 @@ import { sessionStorage, SessionContext, PendingBrokerSession } from "../utils/s
 import { appendAuditLog } from "../utils/auditLog.js";
 import { createApiKeyMiddleware, resolveHttpAuthConfig, PUBLIC_PATHS } from "./httpAuth.js";
 import type { HttpAuthConfig } from "./httpAuth.js";
+import { resolveMcpBaseUrl } from "../config/mcpBaseUrl.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 
@@ -150,13 +151,23 @@ setInterval(() => {
 /**
  * Build the Express app. The API-key gate is installed before every route, so
  * all methods on /mcp (POST, GET/SSE stream, DELETE) and any unknown path
- * return 401 without a valid key. Only PUBLIC_PATHS (/health and the OAuth
- * redirect target) are reachable without it. Exported for tests.
+ * return 401 without a valid key. Only public paths (/, /health,
+ * /oauth/callback, and /.well-known/*) are reachable without it. Exported
+ * for tests.
  */
 export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): express.Express {
   const app = express();
 
   app.use(createApiKeyMiddleware(auth));
+
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "clio-mcp",
+      mcp: "/mcp",
+      health: "/health",
+    });
+  });
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, sessions: sessions.size });
@@ -275,7 +286,7 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
     record.pendingOAuthNonce = null;
 
     try {
-      const redirectUri = `${(process.env.MCP_BASE_URL ?? "").trim()}/oauth/callback`;
+      const redirectUri = `${resolveMcpBaseUrl() ?? ""}/oauth/callback`;
       const tokens = await exchangeCodeForTokensPure(code, redirectUri);
 
       // Attempt to resolve clio_user_id from who_am_i (non-fatal)
@@ -320,9 +331,11 @@ export function startHttpServer(
 ): void {
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const app = createApp(auth, opts);
-  app.listen(port, () => {
-    const baseUrl = (process.env.MCP_BASE_URL ?? `http://127.0.0.1:${port}`).trim();
-    console.error(`[http] Clio MCP server listening on port ${port}`);
+  // Bind all interfaces so a container / Railway / similar host can reach us.
+  // 127.0.0.1-only would make the public proxy's health check fail.
+  app.listen(port, "0.0.0.0", () => {
+    const baseUrl = resolveMcpBaseUrl() ?? `http://127.0.0.1:${port}`;
+    console.error(`[http] Clio MCP server listening on 0.0.0.0:${port}`);
     console.error(`[http] MCP endpoint : ${baseUrl}/mcp`);
     console.error(`[http] Health check : ${baseUrl}/health`);
     if (opts.readOnly) {

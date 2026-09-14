@@ -16,7 +16,7 @@ Open-source Model Context Protocol (MCP) connector that lets Claude read live da
 >
 > → **[See Guided MCP Setup](https://oktopeak.com/services/mcp-guided-setup/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-svc)**, or [book a 30-min call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-call)
 
-**Jump to:** [Demo](#demo) · [Setup](#setup) · [Available tools](#available-tools) · [Security & compliance](#compliance--security) · [Need it deployed for you?](#need-more-than-the-connector)
+**Jump to:** [Demo](#demo) · [Setup](#setup) · [Railway + Claude.ai](#deploy-on-railway-and-connect-claudeai) · [Available tools](#available-tools) · [Security & compliance](#compliance--security) · [Need it deployed for you?](#need-more-than-the-connector)
 
 ---
 
@@ -313,7 +313,7 @@ Then point Claude Desktop at it via the [`mcp-remote`](https://www.npmjs.com/pac
 }
 ```
 
-Every route that reaches the MCP server returns `401 Unauthorized` without the key: all methods on `/mcp` (POST, the GET/SSE stream, DELETE) and any unknown path. Only `/health` and the OAuth redirect target `/oauth/callback` are reachable without it, because Clio's browser redirect cannot carry a bearer token.
+Every route that reaches the MCP server returns `401 Unauthorized` without the key: all methods on `/mcp` (POST, the GET/SSE stream, DELETE) and any unknown path. Only `/`, `/health`, the OAuth redirect target `/oauth/callback`, and `/.well-known/*` are reachable without it. `/` exists so a host that health-checks the root (Railway's default unless you set `healthcheckPath`) does not treat a running server as failed; `/.well-known/*` is left open so Claude.ai's OAuth discovery gets a 404 instead of a 401 that looks like "this server wants MCP OAuth". Clio's browser redirect cannot carry a bearer token, which is why `/oauth/callback` is public.
 
 **Local development only:** if you need to run the HTTP server without a key on your own machine, set `MCP_ALLOW_UNAUTHENTICATED=true`. The server starts with a loud warning and every route is open. Never use this on a public host or anywhere other people can reach the port; anyone who can reach the endpoint can drive the connector with your Clio access.
 
@@ -379,6 +379,92 @@ You should see your Clio user ID and token expiry time.
 > If the five steps above look like too much, we can deploy it in your firm for you: scoped OAuth credentials, audit log wired into your stack, one custom workflow designed with your team, and training. Most law firms find this is the faster path.
 >
 > → **[See Guided MCP Setup](https://oktopeak.com/services/mcp-guided-setup/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-svc)**, or [book a 30-min scoping call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-call)
+
+---
+
+## Deploy on Railway and connect Claude.ai
+
+Claude Desktop talks to this connector as a **local child process** (`TRANSPORT=stdio`). That is why the Desktop install works: Claude launches `node` on your machine, Clio's OAuth redirect lands on `http://127.0.0.1:5678/callback`, and tokens stay in your OS keychain.
+
+**claude.ai (the website) cannot do that.** A Custom Connector is opened from Anthropic's servers, not from your laptop. The same is true of Cowork, Claude mobile, and a remote connector added inside Claude Desktop. They need a public `https://` Streamable HTTP server.
+
+Railway is one place to run that server. The steps below use the built-in HTTP transport (`TRANSPORT=http`, the default) and the bearer `MCP_API_KEY` that Claude.ai can send as a request header. This connector does **not** implement MCP-level OAuth (the "Advanced → OAuth Client ID / Secret" fields in Claude). Clio login is a second, later step via the `authenticate` tool.
+
+### What changes about the trust model
+
+Hosting moves the connector off your machine. Claude.ai talks to Railway; Railway talks to Clio. Matter data therefore passes through the Railway process, and Clio tokens live in that process's memory for the life of the MCP session (HTTP mode does not write `~/.clio-mcp/tokens.enc`). Restarting the service, letting it sleep, or running more than one replica drops those sessions and you sign in to Clio again.
+
+Set `READ_ONLY=true` until you have reviewed that. Never set `MCP_ALLOW_UNAUTHENTICATED`. Pair a hosted deploy with a zero-data-retention Claude tier if the work is privileged; see [Trust Model](#trust-model).
+
+### 1. Clio developer app: add the Railway redirect
+
+Keep the Desktop redirect (`http://127.0.0.1:5678/callback`). After Railway gives you a public hostname, add a second redirect URI:
+
+```
+https://<your-service>.up.railway.app/oauth/callback
+```
+
+No trailing slash. If you later attach a custom domain, add that URI too and set `MCP_BASE_URL` to the custom origin.
+
+If you installed via the Clio App Directory (`TOKEN_BROKER_URL` instead of your own client id/secret), skip this step: Clio redirects to the broker, not to Railway.
+
+### 2. Deploy on Railway
+
+Create a new project from this GitHub repo. Railway builds the `Dockerfile` in the repo root.
+
+Set these variables (Variables tab):
+
+| Variable | Value |
+|---|---|
+| `TRANSPORT` | `http` (or omit; http is the default) |
+| `MCP_API_KEY` | output of `openssl rand -hex 32` — at least 24 characters |
+| `CLIO_CLIENT_ID` | from your Clio developer app (omit if using `TOKEN_BROKER_URL`) |
+| `CLIO_CLIENT_SECRET` | from your Clio developer app (omit if using `TOKEN_BROKER_URL`) |
+| `CLIO_REGION` | `us`, `eu`, `au`, or `ca` |
+| `READ_ONLY` | `true` until you want writes |
+| `MCP_BASE_URL` | optional. Defaults to `https://$RAILWAY_PUBLIC_DOMAIN`. Set it for a custom domain. No trailing slash. |
+
+Do **not** set `PORT` (Railway assigns it) or `MCP_ALLOW_UNAUTHENTICATED`.
+
+Generate a public domain (Settings → Networking → Generate Domain). Confirm `https://<that-host>/health` returns JSON with `"ok": true`.
+
+This repo's `railway.toml` already health-checks `/health` and pins one replica. If a deploy is marked unhealthy, a probe of `/mcp` without the API key is supposed to return 401 — that is not a crash.
+
+### 3. Add the connector on claude.ai
+
+1. **Customize → Connectors → Add custom connector.** On Team or Enterprise, an Owner adds it under Organization settings → Connectors first, then each member clicks Connect.
+2. **MCP server URL:** `https://<your-service>.up.railway.app/mcp` (the `/mcp` path is required).
+3. **Request headers:** name `Authorization`, value `Bearer <the same MCP_API_KEY>`.
+4. Leave **Advanced → OAuth Client ID / Secret** empty. Those fields are for MCP-server OAuth, which this connector does not implement. Clio login is the next step.
+5. Click Add. Claude should list the Clio tools.
+
+### 4. Authenticate with Clio inside a chat
+
+The API key only lets Claude reach *your* server. It does not log anyone into Clio.
+
+In a new conversation, enable the connector and type `authenticate with Clio`. Open the URL Claude returns, sign in on Clio, wait for "Authentication Successful", then ask Claude to `check my Clio auth status`.
+
+If the callback page says the session was not found, the Railway process restarted (or you have more than one replica) between generating the URL and finishing login. Run `authenticate` again.
+
+`upload_document` needs a file path *on the Railway filesystem*. It cannot see files on your laptop. Use Desktop / stdio for uploads, or put the file on the server first.
+
+### Using the same Railway URL from Claude Desktop
+
+You can point Desktop at the hosted server instead of stdio, which is useful for a shared firm endpoint:
+
+```json
+{
+  "mcpServers": {
+    "clio": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://<your-service>.up.railway.app/mcp", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <the same MCP_API_KEY>" }
+    }
+  }
+}
+```
+
+Local stdio ([Option A](#option-a-stdio-simplest-single-user)) is still the simpler single-user setup.
 
 ---
 
@@ -525,7 +611,7 @@ All settings are passed as environment variables (in your Claude Desktop config 
 | `CLIO_CLIENT_SECRET` | Yes (BYO app) | — | Client Secret from your Clio developer application. Not used, and not required, in the listed variant. |
 | `TOKEN_BROKER_URL` | Yes (listed variant only) | — | URL of Oktopeak's hosted token broker. Set this INSTEAD OF `CLIO_CLIENT_ID`/`CLIO_CLIENT_SECRET` when installed via the Clio App Directory. See [Listed / one-click install variant](#listed--one-click-install-variant-app-directory). |
 | `TRANSPORT` | No | `http` | `stdio` or `http`. Defaults to `http` at v2.0.0; set to `stdio` for the pre-v2 behavior |
-| `MCP_BASE_URL` | HTTP mode | (none) | Public base URL of this server (e.g. `http://127.0.0.1:3000`). Used for the OAuth redirect |
+| `MCP_BASE_URL` | HTTP mode | (none) | Public base URL of this server (e.g. `https://your-service.up.railway.app`). Used for the Clio OAuth redirect. Trailing slashes are stripped. On Railway, `RAILWAY_PUBLIC_DOMAIN` is used if this is unset |
 | `PORT` | No | `3000` | HTTP listen port (HTTP mode only) |
 | `MCP_API_KEY` | HTTP mode | (none) | Bearer token every client must send in the `Authorization` header. Required in HTTP mode, minimum 24 characters; the server refuses to start without it. Generate with `openssl rand -hex 32` |
 | `MCP_ALLOW_UNAUTHENTICATED` | No | `false` | Local development only. `true` lets the HTTP server start without `MCP_API_KEY` and prints a warning at startup. Never set this on a public host |
@@ -634,6 +720,18 @@ The connector could not put a name to the selected option, so it shows nothing r
 
 **A response carries a `fields_warning`**
 Clio rejected part of the field selection, so the request was retried without the optional expansions. The response is real but incomplete, and the missing fields are not necessarily empty in Clio. Please report it with the quoted message.
+
+**Railway deploy is "unhealthy" or Claude.ai cannot reach the server**
+Confirm `https://<host>/health` returns 200. A request to `/mcp` without `Authorization: Bearer <MCP_API_KEY>` must return 401 — that is the gate working. Set the Railway health-check path to `/health` (already in `railway.toml`). Do not health-check `/mcp`.
+
+**Claude.ai asks for an OAuth Client ID, or "Connect" spins then fails**
+This connector authenticates MCP clients with `MCP_API_KEY`, not MCP OAuth. In the Add custom connector dialog, add a request header `Authorization` = `Bearer <MCP_API_KEY>` and leave the Advanced OAuth Client ID / Secret fields empty. Then, in a chat, run `authenticate with Clio` for the *Clio* login.
+
+**OAuth callback says "Session Not Found" after a Railway login**
+HTTP sessions and pending Clio logins live in process memory. A restart, a sleep, or a second replica between "authenticate" and the browser redirect drops the session. Stay on one replica (`railway.toml` already sets this), keep the service awake while you log in, and run `authenticate` again.
+
+**`upload_document` fails on Claude.ai / Railway**
+The tool reads a path on the machine running the connector. On Railway that is the container, not your laptop. Use Claude Desktop with stdio for local uploads.
 
 ---
 
