@@ -62,7 +62,7 @@ This section exists because law firms evaluating AI tools have asked the right q
 
 ABA Opinion 512 (2023) requires attorneys using AI tools to understand how those tools work, supervise their outputs, and maintain confidentiality of client information. This connector is designed with those obligations in mind:
 
-- **Audit log.** Every tool call (every time Claude queries Clio on your behalf) is appended to a local log file at `~/.clio-mcp/audit.log`. Each entry records the timestamp, which tool was invoked, what arguments were passed, whether it succeeded, and the Clio user ID. The log is stored on your machine, not in any cloud service. It is append-only and never purged by the software, so your firm retains a complete record of AI-initiated data access.
+- **Audit log.** Every tool call (every time Claude queries Clio on your behalf) is appended to a local log file at `~/.clio-mcp/audit.log`. Each entry records the timestamp, which tool was invoked, what arguments were passed, whether it succeeded, and the Clio user ID. The log is stored on your machine, not in any cloud service. It is append-only and never purged by the software, so your firm retains a complete record of AI-initiated data access. Hosted deploys can write the same rows to Neon (`npm run start:neon` with `DATABASE_URL`). The browser privilege-log viewer is a separate service: [clio-mcp-audit-ui](https://github.com/AlconicLLC/clio-mcp-audit-ui).
 
 - **No data retention by the connector.** The connector does not store matter data, client names, or any Clio content. It fetches from the API and passes results to Claude. The only thing persisted locally is your authentication token, and that is encrypted (see below).
 

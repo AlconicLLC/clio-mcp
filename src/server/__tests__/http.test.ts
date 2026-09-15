@@ -56,21 +56,10 @@ describe("HTTP auth gate with MCP_API_KEY set", () => {
   });
 
   it("requires the key on unknown paths too (no route enumeration)", async () => {
-    for (const path of ["/", "/sse", "/messages", "/mcp/", "/HEALTH", "/admin"]) {
+    for (const path of ["/", "/sse", "/messages", "/mcp/", "/HEALTH", "/admin", "/audit"]) {
       const res = await fetch(`${srv.base}${path}`);
       expect(res.status, path).toBe(401);
     }
-  });
-
-  it("serves the audit viewer HTML without a key, and keeps the API gated", async () => {
-    const page = await fetch(`${srv.base}/audit`);
-    expect(page.status).toBe(200);
-    expect(page.headers.get("content-type")).toMatch(/html/);
-    const html = await page.text();
-    expect(html).toContain("Privilege log");
-
-    const api = await fetch(`${srv.base}/audit/api/entries`);
-    expect(api.status).toBe(401);
   });
 
   it("lets a request with the correct key past the gate", async () => {

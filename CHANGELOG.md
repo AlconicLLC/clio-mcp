@@ -9,11 +9,12 @@ All notable changes to this project are documented here. The format follows [Kee
   `node build/fork/start.js` (or `npm run start:neon`) when `DATABASE_URL` is
   set. The default `npm start` path is unchanged, so a fork can keep audit
   rows off the container disk without patching `src/index.ts`.
-- Temporary audit viewer at `GET /audit` on the HTTP transport (HTML shell is
-  public; `/audit/api/entries` and `/audit/api/export` still require
-  `MCP_API_KEY`). Lives under `src/fork/audit-ui/` so it can be lifted into
-  `clio-mcp-audit-ui` later. Filter by date, matter, tool, and outcome;
-  export JSONL or CSV.
+
+### Removed
+- Temporary HTTP audit viewer (`GET /audit` and `/audit/api/*`). The privilege
+  log UI now lives in [clio-mcp-audit-ui](https://github.com/AlconicLLC/clio-mcp-audit-ui)
+  and reads the same Neon `audit_log` table. The MCP server still writes the
+  log (`export_audit_log`, file sink, Neon sink).
 
 ## [2.3.0] - 2026-09-07
 

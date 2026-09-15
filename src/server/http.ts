@@ -19,7 +19,6 @@ import { sessionStorage, SessionContext, PendingBrokerSession } from "../utils/s
 import { appendAuditLog } from "../utils/auditLog.js";
 import { createApiKeyMiddleware, resolveHttpAuthConfig, PUBLIC_PATHS } from "./httpAuth.js";
 import type { HttpAuthConfig } from "./httpAuth.js";
-import { mountAuditUi } from "../fork/audit-ui/mount.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 
@@ -162,8 +161,6 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
   app.get("/health", (_req, res) => {
     res.json({ ok: true, sessions: sessions.size });
   });
-
-  mountAuditUi(app);
 
   app.all("/mcp", express.json(), async (req, res) => {
     try {
@@ -328,7 +325,6 @@ export function startHttpServer(
     console.error(`[http] Clio MCP server listening on port ${port}`);
       console.error(`[http] MCP endpoint : ${baseUrl}/mcp`);
       console.error(`[http] Health check : ${baseUrl}/health`);
-      console.error(`[http] Audit UI     : ${baseUrl}/audit`);
     if (opts.readOnly) {
       console.error(`[http] Tools        : READ_ONLY=true, ${WRITE_TOOLS.size} write tools not registered`);
     }
