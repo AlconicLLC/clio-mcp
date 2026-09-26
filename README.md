@@ -5,7 +5,7 @@
 
 Open-source Model Context Protocol (MCP) connector that lets Claude read live data from [Clio](https://www.clio.com) (matters, custom fields, notes, contacts, documents, folders, tasks, calendar, and billing) without copying client information into chat windows. Built for law firms that care about attorney-client privilege, ABA Opinion 512 compliance, and keeping AI workflows inside their existing practice management stack.
 
-> **TL;DR:** 36 Clio tools exposed to Claude across stdio and HTTP/SSE transports. Audit-logged for ABA Opinion 512. OAuth tokens encrypted at rest with AES-256-GCM. Local-only by default: you register your own Clio developer app, and no relay server sits in between. A separate one-click "listed" variant for the Clio App Directory uses a minimal login-only broker instead, see [Listed / one-click install variant](#listed--one-click-install-variant-app-directory). MIT license, free forever.
+> **TL;DR:** 37 Clio tools exposed to Claude across stdio and HTTP/SSE transports. Audit-logged for ABA Opinion 512. OAuth tokens encrypted at rest with AES-256-GCM. Local-only by default: you register your own Clio developer app, and no relay server sits in between. A separate one-click "listed" variant for the Clio App Directory uses a minimal login-only broker instead, see [Listed / one-click install variant](#listed--one-click-install-variant-app-directory). MIT license, free forever.
 
 **Who this is for:** Law firm IT, legal operations teams, tech-forward partners, and engineers at legal tech companies. If you can follow a five-step terminal install, you can use this.
 
@@ -176,6 +176,7 @@ Once connected, you can ask Claude things like:
 **Documents**
 - *"List all documents on matter 4821"*
 - *"Get the download link for document 9934"*
+- *"Read document 9934 and summarize the indemnification clause"*
 - *"Find all documents named 'retainer' across all matters"*
 
 **Tasks**
@@ -429,12 +430,13 @@ Claude selects and calls these tools automatically based on your questions. You 
 |---|---|---|
 | `list_matter_relationships` | `matter_id`, `limit`, `page_token` | Lists the contacts attached to a matter and the role each plays (co-counsel, expert, fact witness, opposing counsel) |
 
-### Documents (3 tools)
+### Documents (4 tools)
 
 | Tool | Inputs | What it does |
 |---|---|---|
 | `list_documents` | `matter_id`, `parent_id`, `query`, `limit`, `page_token` | Lists or full-text searches documents; at least one of `matter_id`, `parent_id`, or `query` is required; returns a paginated envelope with `total_count`, `has_more`, and `next_page_token` |
 | `get_document` | `document_id` | Returns document metadata and a direct download URL |
+| `get_document_text` | `document_id`, `start_char` | Downloads a PDF, Word (.docx/.doc), RTF or plain-text document with the signed-in user's token and returns its text, 80,000 characters per call (continue with `next_start_char`). Files over 25 MB are refused; scanned PDFs without a text layer return no text. The document text goes to the model, never to the audit log |
 | `upload_document` | `file_path`, `matter_id`, `name`, `content_type` | Uploads a local file to a matter using Clio's multipart S3 upload flow |
 
 ### Folders (3 tools)

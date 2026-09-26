@@ -88,6 +88,7 @@ export const TOOL_META: Readonly<Record<string, ToolMeta>> = {
   // documents
   list_documents: { title: "List documents", readOnly: true },
   get_document: { title: "Get document", readOnly: true },
+  get_document_text: { title: "Get document text", readOnly: true },
   upload_document: { title: "Upload document", readOnly: false },
   // folders
   list_folders: { title: "List folders", readOnly: true },

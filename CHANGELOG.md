@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `get_document_text`: downloads a PDF, Word (.docx, .doc), RTF or plain-text
+  document with the calling user's Clio token and returns its text, 80,000
+  characters per call with `start_char` to continue. Clio's redirect to storage
+  is followed without forwarding the token, files over 25 MB are refused, and
+  the audit log records only `document_id` and `start_char`.
 - Optional Neon/Postgres audit sink under `src/fork/`, started with
   `node build/fork/start.js` (or `npm run start:neon`) when `DATABASE_URL` is
   set. The default `npm start` path is unchanged, so a fork can keep audit

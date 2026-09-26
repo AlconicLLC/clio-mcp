@@ -142,6 +142,7 @@ export const AUDIT_ARG_ALLOWLIST: RedactPolicy = {
   // documents (never the query, the file path or the file name)
   list_documents: ["matter_id", "parent_id", "limit", "page_token"],
   get_document: ["document_id"],
+  get_document_text: ["document_id", "start_char"],
   upload_document: ["matter_id", "content_type"],
   // folders (never the folder name or the search query, which are usually client names)
   list_folders: ["matter_id", "parent_id", "limit", "page_token"],

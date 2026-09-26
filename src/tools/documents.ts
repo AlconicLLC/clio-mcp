@@ -3,13 +3,29 @@ import z from "zod";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { clioGet, clioPost, clioPut, clioPatch, getClioBaseUrl, ClioApiError, extractNextPageToken } from "../utils/clioClient.js";
+import {
+  clioGet,
+  clioPost,
+  clioPut,
+  clioPatch,
+  clioDownload,
+  getClioBaseUrl,
+  ClioApiError,
+  DownloadTooLargeError,
+  extractNextPageToken,
+} from "../utils/clioClient.js";
 import { appendAuditLog } from "../utils/auditLog.js";
+import { detectDocumentKind, extractDocumentText, UnsupportedDocumentError } from "../utils/documentText.js";
 
 const DOCUMENT_LIST_FIELDS = "id,name,content_type,size,created_at,matter{id,display_number}";
 
 const DOCUMENT_DETAIL_FIELDS =
   "id,name,content_type,size,created_at,matter{id,display_number},latest_document_version{uuid,created_at,size}";
+
+// The whole file is held in memory while it is parsed, so this bounds memory per call.
+export const MAX_TEXT_DOWNLOAD_BYTES = 25 * 1024 * 1024;
+// Roughly 20k tokens: enough for most pleadings and contracts without crowding out the conversation.
+export const MAX_TEXT_CHARS = 80_000;
 
 const PART_SIZE = 10 * 1024 * 1024; // 10 MB — above S3's 5 MB minimum
 const MAX_PARTS_PER_REQUEST = 50;
@@ -174,6 +190,97 @@ export function registerDocumentTools(server: McpServer): void {
           return { content: [{ type: "text", text: `Document ${document_id} not found.` }] };
         }
         await appendAuditLog({ tool: "get_document", args: { document_id }, outcome: "error", error_message: err.message });
+        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_document_text",
+    {
+      description:
+        "Download a Clio document and return its text so it can be read, summarized or quoted. " +
+        "Supports PDF, Word (.docx, .doc), RTF and plain text files; spreadsheets and images are not supported. Scanned PDFs without a text layer return no text. " +
+        `Returns at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters per call; when the result says ` +
+        "truncated, call again with start_char set to next_start_char to read the rest.",
+      inputSchema: {
+        document_id: z.number().int().positive().describe("The Clio document ID"),
+        start_char: z.number().int().min(0).default(0)
+          .describe("Character offset to start from; use next_start_char from a previous call to continue"),
+      },
+    },
+    async ({ document_id, start_char }) => {
+      let matterId: number | undefined;
+      const auditArgs = { document_id, start_char };
+      try {
+        const meta = await clioGet(`/documents/${document_id}.json`, { fields: DOCUMENT_DETAIL_FIELDS });
+        const doc = meta.data;
+        matterId = doc.matter?.id;
+
+        const kind = detectDocumentKind(doc.content_type, doc.name);
+        if (!kind) {
+          throw new UnsupportedDocumentError(`this file type (${doc.content_type || "unknown"})`);
+        }
+        if (typeof doc.size === "number" && doc.size > MAX_TEXT_DOWNLOAD_BYTES) {
+          throw new DownloadTooLargeError(MAX_TEXT_DOWNLOAD_BYTES);
+        }
+
+        const versionUuid = doc.latest_document_version?.uuid;
+        const buffer = await clioDownload(
+          `/documents/${document_id}/download`,
+          versionUuid ? { version_uuid: versionUuid } : undefined,
+          { maxBytes: MAX_TEXT_DOWNLOAD_BYTES }
+        );
+        const fullText = (await extractDocumentText(buffer, kind)).trim();
+
+        const end = Math.min(start_char + MAX_TEXT_CHARS, fullText.length);
+        const text = fullText.slice(start_char, end);
+        const truncated = end < fullText.length;
+
+        await appendAuditLog({
+          tool: "get_document_text",
+          args: auditArgs,
+          outcome: "success",
+          result_count: text.length,
+          ...(matterId && { matter_id: matterId }),
+        });
+
+        const header = {
+          id: doc.id,
+          name: doc.name,
+          content_type: doc.content_type,
+          matter: doc.matter ? { id: doc.matter.id, display_number: doc.matter.display_number } : null,
+          total_characters: fullText.length,
+          start_char,
+          end_char: end,
+          truncated,
+          next_start_char: truncated ? end : null,
+        };
+
+        let body: string;
+        if (fullText.length === 0) {
+          body = kind === "pdf"
+            ? "No extractable text. This PDF is probably a scan or image; it needs OCR before it can be read."
+            : "The document contains no text.";
+        } else if (start_char >= fullText.length) {
+          body = `start_char ${start_char} is past the end of the document (${fullText.length} characters).`;
+        } else {
+          body = text;
+        }
+
+        return { content: [{ type: "text", text: `${JSON.stringify(header, null, 2)}\n\n${body}` }] };
+      } catch (err: any) {
+        const notFound = err instanceof ClioApiError && err.statusCode === 404;
+        await appendAuditLog({
+          tool: "get_document_text",
+          args: auditArgs,
+          outcome: notFound ? "success" : "error",
+          ...(!notFound && { error_message: err.message }),
+          ...(matterId && { matter_id: matterId }),
+        });
+        if (notFound) {
+          return { content: [{ type: "text", text: `Document ${document_id} not found.` }] };
+        }
         return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
       }
     }

@@ -88,7 +88,8 @@ async function clioFetch(url: string, init: RequestInit): Promise<Response> {
       throw new Error(`Clio rate limit exceeded after ${attempt} retries (${Math.round(totalWaited)}ms total wait).`);
     }
 
-    if (!res.ok) {
+    const isManualRedirect = init.redirect === "manual" && res.status >= 300 && res.status < 400;
+    if (!res.ok && !isManualRedirect) {
       const raw = await res.text();
       let msg = raw;
       try {
@@ -182,6 +183,71 @@ export async function clioPatch(path: string, body: unknown, params?: Record<str
   });
   const text = await res.text();
   return text.trim() ? JSON.parse(text) : {};
+}
+
+export class DownloadTooLargeError extends Error {
+  constructor(public readonly maxBytes: number) {
+    super(`File exceeds the ${Math.round(maxBytes / (1024 * 1024))} MB download limit.`);
+    this.name = "DownloadTooLargeError";
+  }
+}
+
+async function readBodyWithLimit(res: Response, maxBytes: number): Promise<Buffer> {
+  const declared = Number(res.headers.get("Content-Length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel();
+    throw new DownloadTooLargeError(maxBytes);
+  }
+  if (!res.body) return Buffer.alloc(0);
+
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new DownloadTooLargeError(maxBytes);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+/**
+ * Downloads a binary file from a Clio endpoint that answers with the bytes or
+ * with a redirect to a pre-signed storage URL. The redirect is followed by hand
+ * so the user's Clio token is never sent to the storage host.
+ */
+export async function clioDownload(
+  path: string,
+  params: Record<string, string> | undefined,
+  opts: { maxBytes: number }
+): Promise<Buffer> {
+  const token = await resolveAccessToken();
+  const url = new URL(`${getBase()}${path}`);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  }
+  const res = await clioFetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+    redirect: "manual",
+  });
+
+  if (res.status < 300 || res.status >= 400) return readBodyWithLimit(res, opts.maxBytes);
+
+  const location = res.headers.get("Location");
+  await res.body?.cancel();
+  if (!location) throw new Error(`Clio returned HTTP ${res.status} without a download location.`);
+
+  const fileRes = await fetch(new URL(location, url));
+  if (!fileRes.ok) {
+    await fileRes.body?.cancel();
+    throw new Error(`Downloading the file from storage failed: HTTP ${fileRes.status}`);
+  }
+  return readBodyWithLimit(fileRes, opts.maxBytes);
 }
 
 export function extractNextPageToken(meta: any): string | null {
