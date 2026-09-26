@@ -1,0 +1,12 @@
+# Used only if the Docker builder is turned off. Prefer the Dockerfile.
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node build/index.js"
