@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.4.0-rc.1] - 2026-09-27
+
 ### Added
 - `AUTH_MODE=oauth`: sign-in for Claude web, desktop and mobile custom
   connectors. The server acts as the OAuth authorization server Claude
@@ -27,6 +29,10 @@ All notable changes to this project are documented here. The format follows [Kee
   rows off the container disk without patching `src/index.ts`.
 
 ### Fixed
+- Postgres connections rewrite `sslmode=prefer`, `require`, and `verify-ca` to
+  `verify-full` before connecting. Neon URLs can keep `sslmode=require`; the
+  server still checks the certificate and hostname after `pg` v9 stops treating
+  those modes as aliases of `verify-full`.
 - The API-key mode `/oauth/callback` page no longer echoes Clio's `error`
   parameter or exception text into HTML unescaped.
 
