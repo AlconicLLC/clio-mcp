@@ -68,6 +68,13 @@ describe("HTTP auth gate with MCP_API_KEY set", () => {
     await res.text();
   });
 
+  it("escapes Clio's error parameter on the callback page", async () => {
+    const res = await fetch(`${srv.base}/oauth/callback?error=%3Cscript%3Ealert(1)%3C%2Fscript%3E`);
+    const body = await res.text();
+    expect(body).not.toContain("<script>");
+    expect(body).toContain("&lt;script&gt;");
+  });
+
   it("keeps /health reachable without a key", async () => {
     const res = await fetch(`${srv.base}/health`);
     expect(res.status).toBe(200);
