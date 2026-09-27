@@ -15,7 +15,8 @@ function setPageHeaders(res: Response): void {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
+  // no-referrer makes browsers send `Origin: null` on the consent POST, which the origin check rejects.
+  res.setHeader("Referrer-Policy", "same-origin");
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"

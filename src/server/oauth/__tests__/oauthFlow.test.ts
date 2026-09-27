@@ -312,6 +312,7 @@ describe("OAuth mode", () => {
       expect(res.headers.get("cache-control")).toContain("no-store");
       expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
       expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
+      expect(res.headers.get("referrer-policy")).toBe("same-origin");
       const setCookie = res.headers.get("set-cookie")!;
       expect(setCookie).toMatch(/HttpOnly/i);
       expect(setCookie).toMatch(/SameSite=Lax/i);
@@ -335,6 +336,11 @@ describe("OAuth mode", () => {
       expect((await postConsent(h, { ...c, consentToken: "x".repeat(43) })).status).toBe(400);
       expect((await postConsent(h, c)).status).toBe(302);
       expect((await postConsent(h, c)).status).toBe(400);
+    });
+
+    it("accepts the browser's own origin on the consent form", async () => {
+      const c = await openConsent(h, pkce().challenge);
+      expect((await postConsent(h, { ...c, origin: new URL(h.base).origin })).status).toBe(302);
     });
 
     it("rejects an expired sign-in", async () => {
