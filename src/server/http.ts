@@ -19,12 +19,23 @@ import { sessionStorage, SessionContext, PendingBrokerSession } from "../utils/s
 import { appendAuditLog } from "../utils/auditLog.js";
 import { createApiKeyMiddleware, resolveHttpAuthConfig, PUBLIC_PATHS } from "./httpAuth.js";
 import type { HttpAuthConfig } from "./httpAuth.js";
+import { resolveMcpBaseUrl } from "../config/mcpBaseUrl.js";
+import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
+import type { OAuthConfig } from "./oauth/config.js";
+import type { ClioProxyOAuthProvider } from "./oauth/provider.js";
+import { ClioSignInRequiredError } from "./oauth/clio.js";
+import type { ClioTokenVault } from "./oauth/clio.js";
+import type { OAuthStore } from "./oauth/store.js";
+import { mountOAuthRoutes, resourceMetadataUrl } from "./oauth/routes.js";
+import { escapeHtml } from "./oauth/pages.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 
 export interface SessionRecord {
   transport: StreamableHTTPServerTransport;
   mcpServer: McpServer | null;
+  /** OAuth mode: the attorney whose bearer token opened the session. Nobody else may use it. */
+  ownerClioUserId?: string;
   tokens: ClioTokens | null;
   pendingOAuthNonce: string | null;
   /** Broker mode: the PKCE verifier parked between authorize and callback. */
@@ -36,15 +47,48 @@ export interface SessionRecord {
 
 const sessions = new Map<string, SessionRecord>();
 
+export interface OAuthRuntime {
+  config: OAuthConfig;
+  provider: ClioProxyOAuthProvider;
+  vault: ClioTokenVault;
+  store: OAuthStore;
+}
+
 export interface HttpServerOptions {
   /** Leave the write tools unregistered for every session (READ_ONLY=true). */
   readOnly?: boolean;
+  /** AUTH_MODE=oauth: Claude signs each attorney in; replaces the shared API key. */
+  oauth?: OAuthRuntime;
 }
 
 function createMcpServer(opts: HttpServerOptions = {}): McpServer {
   const server = new McpServer({ name: "clio-mcp", version: pkg.version });
-  registerAllTools(server, { readOnly: opts.readOnly });
+  // In OAuth mode sign-in happens in Claude's connector UI, so only auth_status makes sense.
+  registerAllTools(server, { readOnly: opts.readOnly, auth: opts.oauth ? "status" : "full" });
   return server;
+}
+
+/** OAuth mode: each tool call acts as the signed-in attorney, using their own Clio tokens. */
+export function buildOAuthSessionContext(sessionId: string, clioUserId: string, vault: ClioTokenVault): SessionContext {
+  const unsupported = async () => {
+    throw new Error("Sign-in is managed by Claude. Disconnect and reconnect the Clio connector to sign in again.");
+  };
+  return {
+    sessionId,
+    userId: clioUserId,
+    clioUserId,
+    getAccessToken: async () => (await vault.getFreshTokens(clioUserId)).access_token,
+    getTokens: async () => {
+      try {
+        return await vault.getFreshTokens(clioUserId);
+      } catch (err) {
+        if (err instanceof ClioSignInRequiredError) return null;
+        throw err;
+      }
+    },
+    storeTokens: unsupported,
+    clearTokens: unsupported,
+  };
 }
 
 /**
@@ -154,6 +198,7 @@ setInterval(() => {
  * redirect target) are reachable without it. Exported for tests.
  */
 export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): express.Express {
+  if (opts.oauth) return createOAuthApp(opts.oauth, opts);
   const app = express();
 
   app.use(createApiKeyMiddleware(auth));
@@ -232,7 +277,7 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
 
     if (oauthError) {
       res.status(400).send(
-        `<h1>Authentication Error</h1><p>${oauthError}</p><p>You can close this tab.</p>`
+        `<h1>Authentication Error</h1><p>${escapeHtml(String(oauthError))}</p><p>You can close this tab.</p>`
       );
       return;
     }
@@ -275,7 +320,7 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
     record.pendingOAuthNonce = null;
 
     try {
-      const redirectUri = `${(process.env.MCP_BASE_URL ?? "").trim()}/oauth/callback`;
+      const redirectUri = `${resolveMcpBaseUrl() ?? ""}/oauth/callback`;
       const tokens = await exchangeCodeForTokensPure(code, redirectUri);
 
       // Attempt to resolve clio_user_id from who_am_i (non-fatal)
@@ -301,10 +346,94 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
     } catch (err: any) {
       console.error("[http] OAuth callback error:", err.message);
       res.status(500).send(
-        `<h1>Authentication Failed</h1><p>${err.message}</p><p>Please try authenticating again.</p>`
+        `<h1>Authentication Failed</h1><p>${escapeHtml(String(err.message))}</p><p>Please try authenticating again.</p>`
       );
     }
   });
+
+  return app;
+}
+
+/**
+ * AUTH_MODE=oauth. Every /mcp request needs a bearer token this server issued
+ * through Claude's sign-in; the token names the attorney, and their session and
+ * Clio tokens are theirs alone. There is no API key and no shared Clio login.
+ */
+function createOAuthApp(oauth: OAuthRuntime, opts: HttpServerOptions): express.Express {
+  const app = express();
+  // Behind Railway's proxy: needed so rate limits see the caller's IP, not the proxy's.
+  app.set("trust proxy", oauth.config.trustProxy);
+  app.disable("x-powered-by");
+
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  mountOAuthRoutes(app, oauth.config, oauth.provider);
+
+  const bearer = requireBearerAuth({
+    verifier: oauth.provider,
+    resourceMetadataUrl: resourceMetadataUrl(oauth.config),
+  });
+
+  app.all("/mcp", bearer, express.json(), async (req, res) => {
+    const clioUserId = req.auth?.extra?.clioUserId;
+    if (typeof clioUserId !== "string") {
+      res.status(401).json({ error: "invalid_token" });
+      return;
+    }
+    try {
+      const incomingSessionId = req.headers["mcp-session-id"] as string | undefined;
+
+      if (!incomingSessionId) {
+        const record: SessionRecord = {
+          transport: null!,
+          mcpServer: null,
+          ownerClioUserId: clioUserId,
+          tokens: null,
+          pendingOAuthNonce: null,
+          pendingBroker: null,
+          refreshInFlight: null,
+          createdAt: Date.now(),
+        };
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: async (sessionId) => {
+            record.mcpServer = createMcpServer(opts);
+            sessions.set(sessionId, record);
+            await record.mcpServer.connect(transport);
+          },
+          onsessionclosed: (sessionId) => {
+            sessions.delete(sessionId);
+          },
+        });
+        record.transport = transport;
+
+        const ctx = buildOAuthSessionContext("", clioUserId, oauth.vault);
+        await sessionStorage.run(ctx, () => transport.handleRequest(req, res, req.body));
+        return;
+      }
+
+      const record = sessions.get(incomingSessionId);
+      // Someone else's session looks exactly like a missing one.
+      if (!record || record.ownerClioUserId !== clioUserId) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+      const ctx = buildOAuthSessionContext(incomingSessionId, clioUserId, oauth.vault);
+      await sessionStorage.run(ctx, () => record.transport.handleRequest(req, res, req.body));
+    } catch (err: any) {
+      console.error("[http] /mcp error:", err.message);
+      if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  setInterval(() => {
+    oauth.provider.sweep();
+    oauth.store.purgeExpired(Date.now()).catch((err) => {
+      console.error("[oauth] Purging expired tokens failed:", err.message);
+    });
+  }, 15 * 60 * 1000).unref();
 
   return app;
 }
@@ -321,14 +450,16 @@ export function startHttpServer(
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const app = createApp(auth, opts);
   app.listen(port, () => {
-    const baseUrl = (process.env.MCP_BASE_URL ?? `http://127.0.0.1:${port}`).trim();
+    const baseUrl = resolveMcpBaseUrl() ?? `http://127.0.0.1:${port}`;
     console.error(`[http] Clio MCP server listening on port ${port}`);
       console.error(`[http] MCP endpoint : ${baseUrl}/mcp`);
       console.error(`[http] Health check : ${baseUrl}/health`);
     if (opts.readOnly) {
       console.error(`[http] Tools        : READ_ONLY=true, ${WRITE_TOOLS.size} write tools not registered`);
     }
-    if (auth.apiKey === null) {
+    if (opts.oauth) {
+      console.error(`[http] Auth         : OAuth (Claude signs each user in with Clio); discovery at ${resourceMetadataUrl(opts.oauth.config)}`);
+    } else if (auth.apiKey === null) {
       console.error("[http] ****************************************************************************");
       console.error("[http] WARNING: MCP_ALLOW_UNAUTHENTICATED=true. NO API KEY IS REQUIRED ON ANY ROUTE.");
       console.error("[http] Anyone who can reach this port can drive the connector with your Clio access.");

@@ -339,6 +339,49 @@ If you installed via the Clio App Directory, there's no developer application to
 
 See [Listed / one-click install variant](#listed--one-click-install-variant-app-directory) above for what this changes about the data flow.
 
+#### Option D: Claude web, desktop and mobile (OAuth sign-in)
+
+Claude's custom connectors (claude.ai, the desktop app's connector settings, and the mobile apps) cannot send an API key. With `AUTH_MODE=oauth` the server becomes an OAuth authorization server for Claude instead: each attorney clicks **Connect**, signs in on Clio's own page, and from then on Claude acts with *that attorney's* Clio permissions. There is no shared key and no shared Clio login.
+
+What the server enforces:
+
+- Only Claude's hosted apps can connect. Claude identifies itself with a published client document at `https://claude.ai/oauth/mcp-oauth-client-metadata`; any other `client_id` is refused, and sign-in codes can only be sent back to `claude.ai`. There is no open client registration.
+- Only Clio users whose email is on one of `ALLOWED_EMAIL_DOMAINS` can finish sign-in (exact domain match; subdomains do not count). Optionally, `CLIO_ALLOWED_ACCOUNT_ID` also pins sign-in to your firm's Clio account.
+- Each attorney's Clio tokens are encrypted with AES-256-GCM (`ENCRYPTION_KEY`) before they reach Postgres. The tokens this server gives Claude are stored only as SHA-256 hashes: access tokens last 1 hour, refresh tokens 30 days and rotate on every use. A reused refresh token ends that connection.
+- An MCP session belongs to the attorney whose token opened it; nobody else can use it.
+
+**1. Create the tables** in the Neon database you already use for the audit log (safe to run again):
+
+```bash
+psql "$DATABASE_URL" -f src/server/oauth/schema.sql
+```
+
+The server checks for these tables at startup and refuses to start without them.
+
+**2. Add the callback to your Clio app.** In the Clio developer portal, set the app's redirect URI to `https://<your-host>/oauth/callback` (the same one used in API-key mode).
+
+**3. Set these variables** on the host (Railway, etc.) and redeploy:
+
+```bash
+AUTH_MODE=oauth
+MCP_BASE_URL=https://<your-host>              # https, no path
+ALLOWED_EMAIL_DOMAINS=yourfirm.com            # comma-separated for several
+ENCRYPTION_KEY=<openssl rand -hex 32>         # keep safe; losing it signs everyone out
+DATABASE_URL=postgres://...                   # the same Neon database
+CLIO_CLIENT_ID=...
+CLIO_CLIENT_SECRET=...
+# Optional
+CLIO_ALLOWED_ACCOUNT_ID=<your Clio account id>
+CLIO_USE_PKCE=true                            # only if PKCE is enabled on the Clio app
+READ_ONLY=true
+```
+
+`MCP_API_KEY` is not used in this mode.
+
+**4. Add the connector in Claude.** An owner of your Claude Team or Enterprise organization opens **Settings → Connectors → Add custom connector** and enters `https://<your-host>/mcp`. Leave the advanced OAuth client ID and secret fields empty. Each attorney then clicks **Connect**, reviews the consent page, and signs in to Clio. On Pro or Max, each person adds the connector themselves.
+
+**Signing someone out.** Disconnecting the connector in Claude discards Claude's copy of the tokens; the server's copy expires on its own (1 hour for access, 30 days for refresh). To cut off a person immediately from the server side (for example when someone leaves the firm), run the admin statements at the bottom of `src/server/oauth/schema.sql`; they revoke every connection for that Clio user immediately. If their Clio account is deactivated, the next token refresh fails and the server signs them out on its own.
+
 ---
 
 If the file already has other MCP servers configured, add a comma after the last entry and then add the `"clio"` block.
@@ -529,9 +572,16 @@ All settings are passed as environment variables (in your Claude Desktop config 
 | `TRANSPORT` | No | `http` | `stdio` or `http`. Defaults to `http` at v2.0.0; set to `stdio` for the pre-v2 behavior |
 | `MCP_BASE_URL` | HTTP mode | (none) | Public base URL of this server (e.g. `http://127.0.0.1:3000`). Used for the OAuth redirect |
 | `PORT` | No | `3000` | HTTP listen port (HTTP mode only) |
-| `MCP_API_KEY` | HTTP mode | (none) | Bearer token every client must send in the `Authorization` header. Required in HTTP mode, minimum 24 characters; the server refuses to start without it. Generate with `openssl rand -hex 32` |
+| `MCP_API_KEY` | HTTP mode (API-key auth) | (none) | Bearer token every client must send in the `Authorization` header. Required in HTTP mode unless `AUTH_MODE=oauth`, minimum 24 characters; the server refuses to start without it. Generate with `openssl rand -hex 32` |
+| `AUTH_MODE` | No | `api_key` | `oauth` lets Claude web, desktop and mobile sign each attorney in with Clio instead of using `MCP_API_KEY`. See [Option D](#option-d-claude-web-desktop-and-mobile-oauth-sign-in) |
+| `ALLOWED_EMAIL_DOMAINS` | `AUTH_MODE=oauth` | (none) | Comma-separated email domains allowed to sign in (exact match, case-insensitive) |
+| `DATABASE_URL` | `AUTH_MODE=oauth` | (none) | Postgres (Neon) connection string for sign-ins and tokens. Also used by the Neon audit sink |
+| `OAUTH_STORE` | No | `postgres` | `memory` keeps sign-ins in memory for local testing only; everyone is signed out on restart |
+| `CLIO_ALLOWED_ACCOUNT_ID` | No | (none) | `AUTH_MODE=oauth`: also require the Clio user to belong to this Clio account |
+| `CLIO_USE_PKCE` | No | `false` | `AUTH_MODE=oauth`: add PKCE to the Clio sign-in. Enable only after turning PKCE on for the app in Clio's developer portal |
+| `TRUST_PROXY_HOPS` | No | `1` | `AUTH_MODE=oauth`: reverse proxies in front of the server (Railway is 1), so rate limits see the real client IP |
 | `MCP_ALLOW_UNAUTHENTICATED` | No | `false` | Local development only. `true` lets the HTTP server start without `MCP_API_KEY` and prints a warning at startup. Never set this on a public host |
-| `ENCRYPTION_KEY` | No | auto-generated | Overrides OS keychain. Required only for CI/headless installs where no keychain is available. Must be a 64-character hex string. |
+| `ENCRYPTION_KEY` | `AUTH_MODE=oauth` | auto-generated | Overrides OS keychain. Required only for CI/headless installs where no keychain is available, and in `AUTH_MODE=oauth`, where it encrypts every attorney's Clio tokens in Postgres. Must be a 64-character hex string. |
 | `CLIO_REDIRECT_PORT` | No | `5678` | Local port for the OAuth callback (stdio mode). Change if 5678 is in use on your machine |
 | `CLIO_REGION` | No | `us` | Clio data region: `us`, `eu`, `au`, or `ca`. Controls the default Clio API and OAuth base URLs. Set at Clio account creation; must match the server your firm logs in to. Any other value stops startup with an error |
 | `CLIO_API_BASE` | No | `<region host>/api/v4` | Advanced override for the API base URL. Takes precedence over `CLIO_REGION` |

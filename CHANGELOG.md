@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `AUTH_MODE=oauth`: sign-in for Claude web, desktop and mobile custom
+  connectors. The server acts as the OAuth authorization server Claude
+  discovers from `/mcp`'s 401, accepts only Claude's published client
+  (CIMD, no open registration), shows a consent page, and signs each attorney
+  in on Clio's own page. Sign-in is limited to `ALLOWED_EMAIL_DOMAINS` and
+  optionally `CLIO_ALLOWED_ACCOUNT_ID`. Clio tokens are stored per attorney in
+  Postgres, encrypted with AES-256-GCM; issued tokens are stored as hashes,
+  expire after 1 hour (access) and 30 days (refresh, rotated, reuse revokes
+  the connection). Each MCP session is bound to one attorney. Tables:
+  `src/server/oauth/schema.sql`. API-key mode is unchanged and still the
+  default.
 - `get_document_text`: downloads a PDF, Word (.docx, .doc), RTF or plain-text
   document with the calling user's Clio token and returns its text, 80,000
   characters per call with `start_char` to continue. Clio's redirect to storage
@@ -14,6 +25,10 @@ All notable changes to this project are documented here. The format follows [Kee
   `node build/fork/start.js` (or `npm run start:neon`) when `DATABASE_URL` is
   set. The default `npm start` path is unchanged, so a fork can keep audit
   rows off the container disk without patching `src/index.ts`.
+
+### Fixed
+- The API-key mode `/oauth/callback` page no longer echoes Clio's `error`
+  parameter or exception text into HTML unescaped.
 
 ### Removed
 - Temporary HTTP audit viewer (`GET /audit` and `/audit/api/*`). The privilege

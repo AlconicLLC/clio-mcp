@@ -15,6 +15,7 @@ import {
 } from "./clioOAuth.js";
 import type { ClioTokens } from "./clioOAuth.js";
 import { singleFlight } from "../utils/singleFlight.js";
+import { resolveMcpBaseUrl } from "../config/mcpBaseUrl.js";
 
 export type { ClioTokens } from "./clioOAuth.js";
 export { generateCodeVerifier, deriveCodeChallenge } from "./clioOAuth.js";
@@ -272,8 +273,7 @@ function waitForCallback(port: string, expectedState: string): Promise<string> {
 /** Built-in HTTP mode: the login URL for a session, with the nonce to verify on callback. */
 export function buildAuthorizationUrl(sessionId: string): { url: string; nonce: string } {
   const { clientId, authorizeUrl } = envClient();
-  const baseUrl = (process.env.MCP_BASE_URL ?? "").trim();
-  const redirectUri = `${baseUrl}/oauth/callback`;
+  const redirectUri = `${resolveMcpBaseUrl() ?? ""}/oauth/callback`;
   const nonce = crypto.randomBytes(16).toString("hex");
   const state = Buffer.from(`${sessionId}:${nonce}`).toString("base64url");
   const url = buildClioAuthorizeUrl({ clientId, authorizeUrl, redirectUri, state });
