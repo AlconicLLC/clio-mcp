@@ -7,6 +7,7 @@
  * hashes and ciphertext.
  */
 import pg from "pg";
+import { withVerifyFullSsl } from "../../utils/pgSsl.js";
 
 export type TokenKind = "access" | "refresh";
 
@@ -133,7 +134,7 @@ export class PostgresOAuthStore implements OAuthStore {
   constructor(private readonly db: Queryable) {}
 
   static fromUrl(databaseUrl: string): PostgresOAuthStore {
-    return new PostgresOAuthStore(new pg.Pool({ connectionString: databaseUrl, max: 5 }));
+    return new PostgresOAuthStore(new pg.Pool({ connectionString: withVerifyFullSsl(databaseUrl), max: 5 }));
   }
 
   async checkSchema(): Promise<void> {

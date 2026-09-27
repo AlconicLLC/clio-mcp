@@ -7,6 +7,7 @@
  */
 import pg from "pg";
 import type { AuditEntry, AuditFilter, AuditSink } from "../utils/auditLog.js";
+import { withVerifyFullSsl } from "../utils/pgSsl.js";
 
 export type Queryable = {
   query: (text: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -110,7 +111,7 @@ function buildWhere(filter: AuditFilter): { sql: string; params: unknown[] } {
  */
 export function createNeonAuditSink(databaseUrl: string, pool?: Queryable): AuditSink {
   const db: Queryable = pool ?? new pg.Pool({
-    connectionString: databaseUrl,
+    connectionString: withVerifyFullSsl(databaseUrl),
     max: 5,
   });
 
