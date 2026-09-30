@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-09-30
+
+### Fixed
+
+- Library mode: `SessionContext` takes an optional `region`, and every Clio
+  data call inside that session goes to that region's API. Hosts serving firms
+  in several Clio regions from one process were sending every call to the
+  `CLIO_REGION` default, so a firm on another region got `401 invalid_token`
+  on every tool. Unset `region` keeps the old behaviour (CLIO_REGION /
+  CLIO_API_BASE).
+
 ## [2.3.0] - 2026-09-07
 
 Matter stages and `create_custom_field`, previously staged and unverified,
