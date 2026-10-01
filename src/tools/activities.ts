@@ -1,11 +1,90 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import z from "zod";
-import { clioGet, clioPost, extractNextPageToken } from "../utils/clioClient.js";
+import { clioGet, clioGetWithFieldFallback, clioPost, extractNextPageToken } from "../utils/clioClient.js";
 import { appendAuditLog } from "../utils/auditLog.js";
 
 const ACTIVITY_FIELDS = "id,date,quantity_in_hours,price,total,note,matter{id,display_number},user{id,name}";
 
+/** Expense reads. Category and quantity are optional expansions; a rejection falls back to the base set. */
+const EXPENSE_BASE_FIELDS = "id,type,date,price,total,note,matter{id,display_number},user{id,name}";
+const EXPENSE_FIELDS = `${EXPENSE_BASE_FIELDS},quantity,expense_category{id,name}`;
+
 export function registerActivityTools(server: McpServer): void {
+  server.registerTool(
+    "list_expenses",
+    {
+      description:
+        "List expenses (disbursements and costs) from Clio, the counterpart to list_time_entries. " +
+        "Filter by matter, user and date range. Defaults to ExpenseEntry; pass HardCostEntry or SoftCostEntry for firms that record costs that way.",
+      inputSchema: {
+        matter_id: z.number().int().positive().optional().describe("Filter by matter ID"),
+        user_id: z.number().int().positive().optional().describe("Filter by the Clio user who recorded the expense"),
+        start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("ISO date (YYYY-MM-DD) — expenses on or after this date"),
+        end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("ISO date (YYYY-MM-DD) — expenses on or before this date"),
+        expense_type: z.enum(["ExpenseEntry", "HardCostEntry", "SoftCostEntry"]).default("ExpenseEntry").describe("Clio activity type to list"),
+        limit: z.number().int().min(1).max(200).default(25).describe("Max results to return (1-200)"),
+        page_token: z.string().optional().describe("Cursor from a previous list_expenses response to fetch the next page"),
+      },
+    },
+    async ({ matter_id, user_id, start_date, end_date, expense_type, limit, page_token }) => {
+      const auditArgs = { matter_id, user_id, start_date, end_date, expense_type, limit, page_token };
+      try {
+        const params: Record<string, string> = {
+          fields: EXPENSE_FIELDS,
+          limit: String(limit),
+          type: expense_type,
+        };
+        if (matter_id) params["matter_id"] = String(matter_id);
+        if (user_id) params["user_id"] = String(user_id);
+        if (start_date) params["start_date"] = start_date;
+        if (end_date) params["end_date"] = end_date;
+        if (page_token) params["page_token"] = page_token;
+
+        const { body: data, fields_warning } = await clioGetWithFieldFallback("/activities.json", params, EXPENSE_BASE_FIELDS);
+        const entries = data.data as any[];
+        const nextPageToken = entries.length >= limit ? extractNextPageToken(data.meta) : null;
+
+        await appendAuditLog({
+          tool: "list_expenses",
+          args: auditArgs,
+          outcome: "success",
+          result_count: entries?.length ?? 0,
+          ...(matter_id && { matter_id }),
+        });
+
+        const result = {
+          expenses: entries.map((e) => ({
+            id: e.id,
+            type: e.type ?? expense_type,
+            date: e.date,
+            quantity: e.quantity ?? null,
+            price: e.price ?? null,
+            total: e.total,
+            category: e.expense_category ? { id: e.expense_category.id, name: e.expense_category.name } : null,
+            description: e.note ?? null,
+            matter: e.matter ? { id: e.matter.id, display_number: e.matter.display_number } : null,
+            user: e.user ? { id: e.user.id, name: e.user.name } : null,
+          })),
+          total_count: data.meta?.records ?? entries.length,
+          has_more: nextPageToken !== null,
+          next_page_token: nextPageToken,
+          ...(fields_warning && { fields_warning }),
+        };
+
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      } catch (err: any) {
+        await appendAuditLog({
+          tool: "list_expenses",
+          args: auditArgs,
+          outcome: "error",
+          error_message: err.message,
+          ...(matter_id && { matter_id }),
+        });
+        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
   server.registerTool(
     "list_time_entries",
     {

@@ -1,18 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.oktopeak/clio-mcp",
-  "description": "Connect Claude to Clio: 36 tools for matters, custom fields, notes, documents, folders, billing.",
+  "description": "Connect Claude to Clio: 37 tools for matters, custom fields, notes, documents, folders, time, expenses, billing.",
   "websiteUrl": "https://oktopeak.com/clio-mcp/",
   "repository": {
     "url": "https://github.com/oktopeak/clio-mcp",
     "source": "github"
   },
-  "version": "2.3.1",
+  "version": "2.4.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@oktopeak/clio-mcp",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "transport": {
         "type": "stdio"
       },
@@ -85,7 +85,7 @@
     {
       "registryType": "npm",
       "identifier": "@oktopeak/clio-mcp",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "transport": {
         "type": "stdio"
       },

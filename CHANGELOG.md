@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-01
+
+### Added
+
+- `list_expenses`: expenses from Clio, the counterpart to `list_time_entries`.
+  Filters by matter, user and date range; `ExpenseEntry` by default, with
+  `HardCostEntry` and `SoftCostEntry` on request. Returns amount, quantity and
+  category, in the same paginated envelope.
+- `list_matters` and `get_matter` return `responsible_attorney`,
+  `responsible_staff` and `originating_attorney` as `{id, name}`, or null when
+  the role is unassigned, so a workflow skill can see who a matter's tasks go
+  to and a workload report can count open matters per person.
+
+### Notes
+
+- `responsible_staff` and the expense `quantity` / `expense_category`
+  expansions have not yet been exercised against a live account. They are
+  requested as optional expansions: if Clio rejects any of them, the read falls
+  back to the base fields and says so in `fields_warning` rather than failing.
+
 ## [2.3.1] - 2026-09-30
 
 ### Fixed
