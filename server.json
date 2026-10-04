@@ -7,12 +7,12 @@
     "url": "https://github.com/oktopeak/clio-mcp",
     "source": "github"
   },
-  "version": "2.4.0-rc.2",
+  "version": "2.4.0-alconic.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@oktopeak/clio-mcp",
-      "version": "2.4.0-rc.2",
+      "version": "2.4.0-alconic.1",
       "transport": {
         "type": "stdio"
       },
@@ -85,7 +85,7 @@
     {
       "registryType": "npm",
       "identifier": "@oktopeak/clio-mcp",
-      "version": "2.4.0-rc.2",
+      "version": "2.4.0-alconic.1",
       "transport": {
         "type": "stdio"
       },

@@ -2,7 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases before this file existed are described on the [GitHub Releases](https://github.com/oktopeak/clio-mcp/releases) page.
 
+Alconic versions are `{oktopeak}-alconic.{n}`. The base is Oktopeak's published npm version. `n` starts at 1 again whenever that base changes.
+
 ## [Unreleased]
+
+## [2.4.0-alconic.1] - 2026-10-04
+
+Based on [oktopeak/clio-mcp](https://github.com/oktopeak/clio-mcp) @ 2.4.0. First Alconic cut on that base. Includes everything in `2.4.0-rc.1` and `2.4.0-rc.2`.
 
 ### Added
 - Merged Oktopeak 2.3.1 and 2.4.0. `list_expenses` lists expenses (default
