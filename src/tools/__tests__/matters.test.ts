@@ -639,3 +639,38 @@ describe("matter stages", () => {
     expect(entry.args.matter_stage_id).toBe(9);
   });
 });
+
+// ─── who owns a matter ────────────────────────────────────────────────────────
+
+describe("matter people fields", () => {
+  const OWNED = {
+    id: 42, display_number: "00042", description: "Bank dispute", status: "Open",
+    client: { id: 1, name: "Client" }, practice_area: null, open_date: "2026-09-01",
+    responsible_attorney: { id: 10, name: "Daniel" },
+    responsible_staff: { id: 11, name: "Alan" },
+    originating_attorney: null,
+    custom_field_values: [],
+  };
+
+  it("asks for responsible attorney, responsible staff and originating attorney on list and get", async () => {
+    mockClioGet.mockResolvedValue({ data: [OWNED], meta: { records: 1, paging: {} } });
+    await handlers["list_matters"]({ limit: 25 });
+    const listFields = mockClioGet.mock.calls.find((c: any[]) => c[0] === "/matters.json")![1].fields;
+    expect(listFields).toContain("responsible_staff{id,name}");
+    expect(listFields).toContain("responsible_attorney{id,name}");
+
+    mockClioGet.mockResolvedValue({ data: OWNED });
+    await handlers["get_matter"]({ matter_id: 42 });
+    const getFields = mockClioGet.mock.calls.find((c: any[]) => c[0] === "/matters/42.json")![1].fields;
+    expect(getFields).toContain("responsible_staff{id,name}");
+  });
+
+  it("returns each role as {id, name}, or null when unassigned", async () => {
+    mockClioGet.mockResolvedValue({ data: [OWNED], meta: { records: 1, paging: {} } });
+    const result = await handlers["list_matters"]({ limit: 25 }) as any;
+    const m = JSON.parse(result.content[0].text).matters[0];
+    expect(m.responsible_attorney).toEqual({ id: 10, name: "Daniel" });
+    expect(m.responsible_staff).toEqual({ id: 11, name: "Alan" });
+    expect(m.originating_attorney).toBeNull();
+  });
+});

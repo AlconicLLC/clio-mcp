@@ -22,13 +22,25 @@ import {
  */
 const MATTER_LIST_BASE_FIELDS =
   "id,display_number,description,status,client{id,name},practice_area{id,name},open_date,close_date";
+/**
+ * Who owns a matter. Asked for outside the base set: `responsible_staff` is a
+ * newer association than the attorney ones, so if Clio rejects any of these the
+ * read falls back to the base fields with a warning instead of failing.
+ */
+const MATTER_PEOPLE_FIELDS =
+  "responsible_attorney{id,name},originating_attorney{id,name},responsible_staff{id,name}";
 const MATTER_LIST_FIELDS =
-  `${MATTER_LIST_BASE_FIELDS},matter_stage{id,name},${CUSTOM_FIELD_VALUE_FIELDS}`;
+  `${MATTER_LIST_BASE_FIELDS},matter_stage{id,name},${MATTER_PEOPLE_FIELDS},${CUSTOM_FIELD_VALUE_FIELDS}`;
 
 const MATTER_DETAIL_BASE_FIELDS =
   "id,display_number,description,status,client{id,name},practice_area{id,name},open_date,close_date,billable,maildrop_address";
 const MATTER_DETAIL_FIELDS =
-  `${MATTER_DETAIL_BASE_FIELDS},matter_stage{id,name},${CUSTOM_FIELD_VALUE_FIELDS}`;
+  `${MATTER_DETAIL_BASE_FIELDS},matter_stage{id,name},${MATTER_PEOPLE_FIELDS},${CUSTOM_FIELD_VALUE_FIELDS}`;
+
+/** A user reference on a matter, or null when the role is unassigned or was not returned. */
+function person(u: any): { id: number; name: string } | null {
+  return u ? { id: u.id, name: u.name } : null;
+}
 
 /** Warnings that belong on a matter response, given what came back on it. */
 async function customFieldNotes(groups: MappedCustomField[][]): Promise<Record<string, string>> {
@@ -66,7 +78,7 @@ export function registerMatterTools(server: McpServer): void {
   server.registerTool(
     "list_matters",
     {
-      description: "List matters from the connected Clio account",
+      description: "List matters from the connected Clio account, with responsible attorney, responsible staff and originating attorney on each (null when unassigned). Group by those to see who carries which open matters.",
       inputSchema: {
         status: z.enum(["open", "pending", "closed"]).optional().describe("Filter by matter status"),
         limit: z.number().int().min(1).max(200).default(25).describe("Max results to return (1-200)"),
@@ -104,6 +116,9 @@ export function registerMatterTools(server: McpServer): void {
             client: m.client?.name ?? null,
             practice_area: m.practice_area?.name ?? null,
             matter_stage: m.matter_stage?.name ?? null,
+            responsible_attorney: person(m.responsible_attorney),
+            responsible_staff: person(m.responsible_staff),
+            originating_attorney: person(m.originating_attorney),
             open_date: m.open_date,
             close_date: m.close_date ?? null,
             custom_fields: customFields[i],
@@ -156,6 +171,9 @@ export function registerMatterTools(server: McpServer): void {
           client: m.client ? { id: m.client.id, name: m.client.name } : null,
           practice_area: m.practice_area ? { id: m.practice_area.id, name: m.practice_area.name } : null,
           matter_stage: m.matter_stage ? { id: m.matter_stage.id, name: m.matter_stage.name } : null,
+          responsible_attorney: person(m.responsible_attorney),
+          responsible_staff: person(m.responsible_staff),
+          originating_attorney: person(m.originating_attorney),
           open_date: m.open_date,
           close_date: m.close_date ?? null,
           billable: m.billable,

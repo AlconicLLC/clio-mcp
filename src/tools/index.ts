@@ -105,6 +105,7 @@ export const TOOL_META: Readonly<Record<string, ToolMeta>> = {
   create_calendar_entry: { title: "Create calendar entry", readOnly: false },
   // activities
   list_time_entries: { title: "List time entries", readOnly: true },
+  list_expenses: { title: "List expenses", readOnly: true },
   log_time_entry: { title: "Log time entry", readOnly: false },
   create_activity: { title: "Create activity", readOnly: false },
   // billing

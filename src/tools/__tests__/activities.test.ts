@@ -9,6 +9,7 @@ const { mockClioGet, mockClioPost, mockAppendAuditLog } = vi.hoisted(() => ({
 vi.mock("../../utils/clioClient.js", () => ({
   clioGet: mockClioGet,
   clioPost: mockClioPost,
+  clioGetWithFieldFallback: async (path: string, params: any) => ({ body: await mockClioGet(path, params) }),
   extractNextPageToken: (meta: any) => {
     const nextUrl = meta?.paging?.next;
     if (!nextUrl) return null;
@@ -262,5 +263,59 @@ describe("create_activity", () => {
       error_message: "timeout",
       args: expect.objectContaining({ price: 150, non_billable: true }),
     }));
+  });
+});
+
+// ─── list_expenses ────────────────────────────────────────────────────────────
+
+const FAKE_EXPENSE = {
+  id: 501,
+  type: "ExpenseEntry",
+  date: "2026-09-20",
+  quantity: 1,
+  price: 405,
+  total: 405,
+  note: "Filing fee",
+  expense_category: { id: 12, name: "Court fees" },
+  matter: { id: 1, display_number: "2026-0001" },
+  user: { id: 7, name: "Alice" },
+};
+
+describe("list_expenses", () => {
+  it("asks Clio for ExpenseEntry activities by default, with the category expansion", async () => {
+    mockClioGet.mockResolvedValue({ data: [FAKE_EXPENSE], meta: { records: 1, paging: {} } });
+    const { handlers } = buildServer();
+    await handlers["list_expenses"]({ limit: 25, expense_type: "ExpenseEntry" });
+    const params = mockClioGet.mock.calls[0][1];
+    expect(params.type).toBe("ExpenseEntry");
+    expect(params.fields).toContain("expense_category{id,name}");
+  });
+
+  it("maps amount, category, matter and user", async () => {
+    mockClioGet.mockResolvedValue({ data: [FAKE_EXPENSE], meta: { records: 1, paging: {} } });
+    const { handlers } = buildServer();
+    const result = await handlers["list_expenses"]({ limit: 25, expense_type: "ExpenseEntry" }) as any;
+    const e = JSON.parse(result.content[0].text).expenses[0];
+    expect(e).toMatchObject({ id: 501, type: "ExpenseEntry", total: 405, quantity: 1, description: "Filing fee" });
+    expect(e.category).toEqual({ id: 12, name: "Court fees" });
+    expect(e.matter).toEqual({ id: 1, display_number: "2026-0001" });
+    expect(e.user).toEqual({ id: 7, name: "Alice" });
+  });
+
+  it("forwards matter, user, date and type filters", async () => {
+    mockClioGet.mockResolvedValue({ data: [], meta: { records: 0, paging: {} } });
+    const { handlers } = buildServer();
+    await handlers["list_expenses"]({ limit: 10, expense_type: "HardCostEntry", matter_id: 3, user_id: 9, start_date: "2026-09-01", end_date: "2026-09-30" });
+    expect(mockClioGet).toHaveBeenCalledWith("/activities.json", expect.objectContaining({
+      type: "HardCostEntry", matter_id: "3", user_id: "9", start_date: "2026-09-01", end_date: "2026-09-30",
+    }));
+  });
+
+  it("returns null category when Clio leaves it out", async () => {
+    const { expense_category, ...bare } = FAKE_EXPENSE;
+    mockClioGet.mockResolvedValue({ data: [bare], meta: { records: 1, paging: {} } });
+    const { handlers } = buildServer();
+    const result = await handlers["list_expenses"]({ limit: 25, expense_type: "ExpenseEntry" }) as any;
+    expect(JSON.parse(result.content[0].text).expenses[0].category).toBeNull();
   });
 });

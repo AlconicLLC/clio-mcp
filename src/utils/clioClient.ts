@@ -1,6 +1,6 @@
 import { randomInt } from "crypto";
 import { getValidAccessToken } from "../auth/oauth.js";
-import { requireSessionContext } from "./sessionContext.js";
+import { requireSessionContext, getSessionContext } from "./sessionContext.js";
 import { getClioApiBaseUrl } from "./clioRegion.js";
 
 /**
@@ -21,9 +21,10 @@ export class ClioApiError extends Error {
   }
 }
 
-/** Clio API base (region-aware, honours CLIO_API_BASE). See utils/clioRegion.ts. */
+/** Clio API base. The session's region wins (hosted, one process serving several regions); otherwise CLIO_REGION / CLIO_API_BASE. See utils/clioRegion.ts. */
 function getBase() {
-  return getClioApiBaseUrl();
+  const region = getSessionContext()?.region;
+  return region ? getClioApiBaseUrl(region) : getClioApiBaseUrl();
 }
 export function getClioBaseUrl(): string {
   return getBase();

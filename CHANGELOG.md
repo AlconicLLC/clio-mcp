@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Merged Oktopeak 2.3.1 and 2.4.0. `list_expenses` lists expenses (default
+  `ExpenseEntry`; `HardCostEntry` and `SoftCostEntry` on request) with amount,
+  quantity, and category. `list_matters` and `get_matter` return
+  `responsible_attorney`, `responsible_staff`, and `originating_attorney` as
+  `{id, name}`, or null when unassigned. If Clio rejects those optional
+  expansions, the read falls back to the base fields and reports
+  `fields_warning`.
+- `SessionContext` takes an optional `region`. Data calls inside that session
+  go to that region's Clio API. Unset `region` still uses `CLIO_REGION` /
+  `CLIO_API_BASE`, which is what this hosted app does.
+
 ## [2.4.0-rc.2] - 2026-10-03
 
 ### Security
