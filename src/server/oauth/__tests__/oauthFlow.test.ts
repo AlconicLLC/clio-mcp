@@ -243,6 +243,7 @@ describe("OAuth mode", () => {
     it("answers /mcp without a token with 401 and a pointer to the resource metadata", async () => {
       const res = await fetch(`${h.base}/mcp`, { method: "POST", headers: MCP_HEADERS, body: "{}" });
       expect(res.status).toBe(401);
+      expect(res.headers.get("ratelimit-limit") ?? res.headers.get("ratelimit")).toMatch(/3000/);
       expect(res.headers.get("www-authenticate")).toContain(
         `resource_metadata="${h.base}/.well-known/oauth-protected-resource/mcp"`
       );

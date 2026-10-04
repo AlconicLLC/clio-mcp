@@ -6,7 +6,7 @@ vi.mock("../tokenStorage.js", () => ({
   loadTokens: vi.fn().mockResolvedValue(null),
 }));
 
-import { buildAuthorizationUrl, refreshTokensPure, exchangeCodeForTokensPure } from "../oauth.js";
+import { buildAuthorizationUrl, refreshTokensPure, exchangeCodeForTokensPure, oauthCallbackErrorHtml } from "../oauth.js";
 
 const REGIONS: Array<[string, string]> = [
   ["us", "https://app.clio.com"],
@@ -101,5 +101,14 @@ describe("token endpoint per region", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(tokenResponse());
     await expect(refreshTokensPure("old-refresh")).rejects.toThrow(/Invalid CLIO_REGION "usa"/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("local callback page", () => {
+  it("escapes the OAuth error instead of writing it as HTML", () => {
+    const html = oauthCallbackErrorHtml("<script>alert(1)</script>");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).toContain("You can close this tab.");
   });
 });

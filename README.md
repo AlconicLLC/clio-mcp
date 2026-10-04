@@ -314,7 +314,7 @@ Then point Claude Desktop at it via the [`mcp-remote`](https://www.npmjs.com/pac
 }
 ```
 
-Every route that reaches the MCP server returns `401 Unauthorized` without the key: all methods on `/mcp` (POST, the GET/SSE stream, DELETE) and any unknown path. Only `/health` and the OAuth redirect target `/oauth/callback` are reachable without it, because Clio's browser redirect cannot carry a bearer token.
+Every route that reaches the MCP server returns `401 Unauthorized` without the key: all methods on `/mcp` (POST, the GET/SSE stream, DELETE) and any unknown path. Only `/health` and the OAuth redirect target `/oauth/callback` are reachable without it, because Clio's browser redirect cannot carry a bearer token. `/mcp` also allows at most 3000 requests per 15 minutes per client IP (OAuth mode uses the same ceiling). A normal Claude session stays under it.
 
 **Local development only:** if you need to run the HTTP server without a key on your own machine, set `MCP_ALLOW_UNAUTHENTICATED=true`. The server starts with a loud warning and every route is open. Never use this on a public host or anywhere other people can reach the port; anyone who can reach the endpoint can drive the connector with your Clio access.
 

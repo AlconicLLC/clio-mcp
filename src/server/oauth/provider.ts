@@ -282,6 +282,8 @@ export class ClioProxyOAuthProvider implements OAuthServerProvider {
       deny("Clio sign-in was cancelled or refused.");
       return;
     }
+    // Clio's authorization-code redirect delivers the one-time code in the query string.
+    // codeql[js/sensitive-get-query]
     const code = firstString(req.query.code);
     if (!code) {
       deny("Clio did not return an authorization code.");

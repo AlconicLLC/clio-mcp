@@ -1,5 +1,9 @@
 name: CI
 
+# Checkout, install, build, and test. The job never writes back to the repo.
+permissions:
+  contents: read
+
 # Two PRs were merged into this repository with no checks at all, because no
 # workflow existed on the default branch. Both compiled and both passed their
 # tests, but nothing on GitHub said so.

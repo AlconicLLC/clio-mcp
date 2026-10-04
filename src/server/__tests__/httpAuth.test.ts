@@ -22,7 +22,7 @@ describe("resolveHttpAuthConfig", () => {
   });
 
   it("refuses to start when the key is shorter than 24 characters", () => {
-    expect(() => resolveHttpAuthConfig({ MCP_API_KEY: "short" })).toThrow(/too short \(5 characters\)/);
+    expect(() => resolveHttpAuthConfig({ MCP_API_KEY: "short" })).toThrow(/too short/);
     expect(() => resolveHttpAuthConfig({ MCP_API_KEY: "x".repeat(23) })).toThrow(/at least 24 characters/);
   });
 

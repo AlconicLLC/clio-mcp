@@ -41,4 +41,5 @@ Only the latest 2.x minor receives security fixes. Upgrade with `npm install -g 
 - Give the database role only what the server needs on the three `oauth_*` tables. The server never runs DDL.
 - When someone leaves, revoke them with the statements at the bottom of `src/server/oauth/schema.sql` and deactivate their Clio user. Either one is enough to stop access; do both.
 - Serve only over HTTPS (the server refuses a non-loopback `http://` base URL in this mode) and set `TRUST_PROXY_HOPS` to the real number of proxies, so rate limits cannot be dodged with a forged `X-Forwarded-For`.
+- `/mcp` allows 3000 requests per 15 minutes per client IP, in API-key mode and in this mode. Ordinary Claude use stays under that. Past it, the server answers 429 until the window rolls.
 - Sign-ins in progress and authorization codes live in memory. Run a single replica, or put sticky sessions in front of several.

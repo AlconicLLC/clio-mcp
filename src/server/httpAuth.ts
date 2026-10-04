@@ -30,7 +30,7 @@ export function resolveHttpAuthConfig(env: NodeJS.ProcessEnv = process.env): Htt
   if (apiKey !== "") {
     if (apiKey.length < MIN_API_KEY_LENGTH) {
       throw new Error(
-        `MCP_API_KEY is too short (${apiKey.length} characters). HTTP mode requires a secret of at least ` +
+        `MCP_API_KEY is too short. HTTP mode requires a secret of at least ` +
         `${MIN_API_KEY_LENGTH} characters. Generate one with: openssl rand -hex 32`
       );
     }

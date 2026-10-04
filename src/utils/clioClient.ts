@@ -1,3 +1,4 @@
+import { randomInt } from "crypto";
 import { getValidAccessToken } from "../auth/oauth.js";
 import { requireSessionContext } from "./sessionContext.js";
 import { getClioApiBaseUrl } from "./clioRegion.js";
@@ -34,10 +35,11 @@ const MAX_SINGLE_DELAY_MS = 30_000;
 const MAX_TOTAL_WAIT_MS = 90_000;
 const RATE_LIMIT_THROTTLE_THRESHOLD = 3;
 
-/** Full-jitter exponential backoff (upper-half jitter avoids retry storms across sessions). */
+/** Upper-half jitter so sessions retrying together do not line up. Integer milliseconds. */
 function jitteredDelay(attempt: number): number {
   const exp = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_SINGLE_DELAY_MS);
-  return exp / 2 + Math.random() * (exp / 2);
+  const half = Math.floor(exp / 2);
+  return half + randomInt(0, Math.max(1, half));
 }
 
 /**
@@ -67,7 +69,7 @@ async function clioFetch(url: string, init: RequestInit): Promise<Response> {
       // tool calls (e.g. bulk folder creation) doesn't burn through the reactive
       // retry budget below.
       if (remainingNum >= 0 && remainingNum <= RATE_LIMIT_THROTTLE_THRESHOLD) {
-        const pause = 500 + Math.random() * 500;
+        const pause = 500 + randomInt(0, 500);
         if (totalWaited + pause <= MAX_TOTAL_WAIT_MS) {
           await new Promise<void>((resolve) => setTimeout(resolve, pause));
           totalWaited += pause;

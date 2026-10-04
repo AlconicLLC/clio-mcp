@@ -1,13 +1,7 @@
 import type { Response } from "express";
+import { escapeHtml } from "../../utils/html.js";
 
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export { escapeHtml };
 
 /** No scripts, no framing, nothing cached. Forms post only to this origin. */
 function setPageHeaders(res: Response): void {

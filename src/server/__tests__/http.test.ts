@@ -79,6 +79,7 @@ describe("HTTP auth gate with MCP_API_KEY set", () => {
     const res = await fetch(`${srv.base}/health`);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true });
+    expect(res.headers.get("ratelimit-limit") ?? res.headers.get("ratelimit")).toMatch(/3000/);
   });
 
   it("keeps /oauth/callback reachable for Clio's browser redirect", async () => {

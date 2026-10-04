@@ -42,16 +42,23 @@ export function stripHtml(input: unknown): unknown {
   if (typeof input !== "string") return input;
   if (!/[<&]/.test(input)) return input;
 
-  const text = input
-    // List items become dashes before the tags go, so structure survives.
-    .replace(/<li\b[^>]*>/gi, "\n- ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    // Paragraph-level blocks separate with a blank line; list wrappers with a
-    // single one. `</li>` is deliberately absent, because the opening tag
-    // already started the line and closing it too would space out every bullet.
-    .replace(/<\/(p|div|h[1-6])\s*>/gi, "\n\n")
-    .replace(/<\/(ul|ol)\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "");
+  // Repeat until a pass removes nothing. Deleting one tag can expose another,
+  // and the newlines inserted above contain no `<`.
+  let text = input;
+  let previous: string;
+  do {
+    previous = text;
+    text = text
+      // List items become dashes before the tags go, so structure survives.
+      .replace(/<li\b[^>]*>/gi, "\n- ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      // Paragraph-level blocks separate with a blank line; list wrappers with a
+      // single one. `</li>` is deliberately absent, because the opening tag
+      // already started the line and closing it too would space out every bullet.
+      .replace(/<\/(p|div|h[1-6])\s*>/gi, "\n\n")
+      .replace(/<\/(ul|ol)\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "");
+  } while (text !== previous);
 
   return decodeEntities(text)
     .replace(/[ \t]+\n/g, "\n")

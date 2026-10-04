@@ -16,6 +16,7 @@ import {
 import type { ClioTokens } from "./clioOAuth.js";
 import { singleFlight } from "../utils/singleFlight.js";
 import { resolveMcpBaseUrl } from "../config/mcpBaseUrl.js";
+import { escapeHtml } from "../utils/html.js";
 
 export type { ClioTokens } from "./clioOAuth.js";
 export { generateCodeVerifier, deriveCodeChallenge } from "./clioOAuth.js";
@@ -227,6 +228,11 @@ async function refreshViaBrokerAndSave(tokens: ClioTokens): Promise<ClioTokens> 
   return newTokens;
 }
 
+/** Local stdio callback page. `detail` is Clio's error query, or a fallback when no code arrived. */
+export function oauthCallbackErrorHtml(detail: string): string {
+  return `<h1>Error: ${escapeHtml(detail)}</h1><p>You can close this tab.</p>`;
+}
+
 function waitForCallback(port: string, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -241,7 +247,7 @@ function waitForCallback(port: string, expectedState: string): Promise<string> {
       res.writeHead(200, { "Content-Type": "text/html" });
 
       if (error || !code) {
-        res.end(`<h1>Error: ${error || "No code received"}</h1><p>You can close this tab.</p>`);
+        res.end(oauthCallbackErrorHtml(error || "No code received"));
         server.close();
         reject(new Error(`OAuth error: ${error}`));
         return;

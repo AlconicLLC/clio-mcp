@@ -22,6 +22,18 @@ import type { ClioProxyOAuthProvider } from "./provider.js";
 const TOKEN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, max: 600 };
 const BROWSER_RATE_LIMIT = { windowMs: 15 * 60 * 1000, max: 60 };
 
+/**
+ * Tool calls are much more frequent than token refreshes, and they share that
+ * same egress range, so this ceiling is per IP for the whole firm. A busy
+ * Claude session stays under it. A loop opening sessions does not.
+ */
+export const MCP_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  max: 3000,
+  standardHeaders: true,
+  legacyHeaders: false,
+} as const;
+
 export function buildAuthorizationServerMetadata(config: OAuthConfig): OAuthMetadata {
   const issuer = new URL(config.baseUrl).href;
   const at = (path: string) => new URL(path, issuer).href;

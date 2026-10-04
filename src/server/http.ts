@@ -1,4 +1,5 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { readFileSync } from "fs";
 import { randomUUID, timingSafeEqual } from "crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -26,7 +27,7 @@ import type { ClioProxyOAuthProvider } from "./oauth/provider.js";
 import { ClioSignInRequiredError } from "./oauth/clio.js";
 import type { ClioTokenVault } from "./oauth/clio.js";
 import type { OAuthStore } from "./oauth/store.js";
-import { mountOAuthRoutes, resourceMetadataUrl } from "./oauth/routes.js";
+import { mountOAuthRoutes, resourceMetadataUrl, MCP_RATE_LIMIT } from "./oauth/routes.js";
 import { escapeHtml } from "./oauth/pages.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
@@ -201,6 +202,8 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
   if (opts.oauth) return createOAuthApp(opts.oauth, opts);
   const app = express();
 
+  // Before the API-key check, so a flood of bad keys is capped too.
+  app.use(rateLimit({ ...MCP_RATE_LIMIT }));
   app.use(createApiKeyMiddleware(auth));
 
   app.get("/health", (_req, res) => {
@@ -273,6 +276,7 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
   });
 
   app.get("/oauth/callback", async (req, res) => {
+    // codeql[js/sensitive-get-query] -- Clio's authorization-code redirect delivers the one-time code in the query string.
     const { code, state, error: oauthError } = req.query as Record<string, string>;
 
     if (oauthError) {
@@ -376,7 +380,7 @@ function createOAuthApp(oauth: OAuthRuntime, opts: HttpServerOptions): express.E
     resourceMetadataUrl: resourceMetadataUrl(oauth.config),
   });
 
-  app.all("/mcp", bearer, express.json(), async (req, res) => {
+  app.all("/mcp", rateLimit({ ...MCP_RATE_LIMIT }), bearer, express.json(), async (req, res) => {
     const clioUserId = req.auth?.extra?.clioUserId;
     if (typeof clioUserId !== "string") {
       res.status(401).json({ error: "invalid_token" });

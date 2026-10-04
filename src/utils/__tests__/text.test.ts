@@ -48,4 +48,8 @@ describe("stripHtml", () => {
       "See the order for detail."
     );
   });
+
+  it("strips a tag that wraps another tag instead of leaving the outer name behind as markup", () => {
+    expect(stripHtml("<scr<script>ipt>alert(1)</script>")).toBe("ipt>alert(1)");
+  });
 });

@@ -105,7 +105,7 @@ export function resolveOAuthConfig(env: NodeJS.ProcessEnv = process.env): OAuthC
     if (!databaseUrl) problems.push("DATABASE_URL is required to store sign-ins (or OAUTH_STORE=memory for local development).");
     else store = { kind: "postgres", databaseUrl };
   } else {
-    problems.push(`OAUTH_STORE must be "postgres" or "memory", got "${env.OAUTH_STORE}".`);
+    problems.push(`OAUTH_STORE must be "postgres" or "memory".`);
   }
 
   if (!(env.CLIO_CLIENT_ID ?? "").trim() || !(env.CLIO_CLIENT_SECRET ?? "").trim()) {

@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.4.0-rc.2] - 2026-10-03
+
+### Security
+- The local stdio login page escapes Clio's error text before showing it.
+  The hosted `/oauth/callback` page already did.
+- `/mcp` allows 3,000 requests per 15 minutes per client IP, in API-key mode
+  and in `AUTH_MODE=oauth`. A normal Claude session stays under that. Past it,
+  the server answers 429 until the window rolls.
+- Clio retry delays use cryptographic randomness.
+- Rich-text cleanup repeats until a nested tag cannot reappear. Ordinary Clio
+  notes still come back as the same plain text.
+- Startup errors no longer include the length of `MCP_API_KEY` or the raw
+  `OAUTH_STORE` value.
+- The CI workflow token can only read repository contents.
+
 ## [2.4.0-rc.1] - 2026-09-27
 
 ### Added
