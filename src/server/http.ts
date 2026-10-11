@@ -276,12 +276,11 @@ export function createApp(auth: HttpAuthConfig, opts: HttpServerOptions = {}): e
   });
 
   app.get("/oauth/callback", async (req, res) => {
-    // codeql[js/sensitive-get-query] -- Clio's authorization-code redirect delivers the one-time code in the query string.
-    const { code, state, error: oauthError } = req.query as Record<string, string>;
+    const { code, state, error } = req.query as Record<string, string>;
 
-    if (oauthError) {
+    if (error) {
       res.status(400).send(
-        `<h1>Authentication Error</h1><p>${escapeHtml(String(oauthError))}</p><p>You can close this tab.</p>`
+        `<h1>Authentication Error</h1><p>${escapeHtml(String(error))}</p><p>You can close this tab.</p>`
       );
       return;
     }
