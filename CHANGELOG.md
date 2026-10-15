@@ -6,6 +6,20 @@ Alconic versions are `{oktopeak}-alconic.{n}`. The base is Oktopeak's published 
 
 ## [Unreleased]
 
+## [2.4.0-alconic.2] - 2026-10-14
+
+### Security
+- The MCP SDK is 1.32.1. Older copies could send a stored refresh token and
+  client secret to an authorization server chosen by a remote MCP server.
+  This app is the server, so that client path was not in use.
+- The address check behind the hosted rate limits no longer treats an
+  IPv4-mapped IPv6 address as a different client.
+- Word conversion's command-line helper no longer uses the unfixed
+  `sprintf-js` release. The replacement caps numeric precision so a format
+  string cannot crash the process. Document text extraction is unchanged.
+- The source-map parser used by the test tools no longer stalls on a crafted
+  map.
+
 ## [2.4.0-alconic.1] - 2026-10-04
 
 Based on [oktopeak/clio-mcp](https://github.com/oktopeak/clio-mcp) @ 2.4.0. First Alconic cut on that base. Includes everything in `2.4.0-rc.1` and `2.4.0-rc.2`.

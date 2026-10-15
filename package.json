@@ -1,6 +1,6 @@
 {
   "name": "@oktopeak/clio-mcp",
-  "version": "2.4.0-alconic.1",
+  "version": "2.4.0-alconic.2",
   "mcpName": "io.github.oktopeak/clio-mcp",
   "description": "Open-source Model Context Protocol (MCP) server that connects Claude to Clio practice management. 38 tools covering matters, contacts, custom fields, matter stages, documents, folders, tasks, notes, relationships, calendar, time entries, expenses, billing, users, and audit-log export. Supports stdio and HTTP/SSE transports, an optional read-only mode, and use as a library. Built for law firms with ABA Opinion 512 audit logging and AES-256 encrypted token storage.",
   "main": "build/lib.js",
@@ -63,7 +63,7 @@
   },
   "homepage": "https://oktopeak.com/clio-mcp/?utm_source=npm&utm_medium=package&utm_campaign=clio-mcp&utm_content=homepage",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@napi-rs/keyring": "^1.3.0",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
@@ -86,5 +86,8 @@
   },
   "allowScripts": {
     "fsevents@2.3.3": true
+  },
+  "overrides": {
+    "sprintf-js": "file:vendor/sprintf-js"
   }
 }

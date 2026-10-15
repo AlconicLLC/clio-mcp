@@ -1,0 +1,7 @@
+{
+  "name": "sprintf-js",
+  "version": "1.1.4",
+  "description": "sprintf-js 1.0.3 with numeric precision capped at 100. Upstream has no release outside GHSA-hp3w-g68c-fv3c.",
+  "main": "sprintf.js",
+  "license": "BSD-3-Clause"
+}
