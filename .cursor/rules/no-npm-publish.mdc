@@ -1,0 +1,13 @@
+---
+description: This private fork is never published to npm
+alwaysApply: true
+---
+
+# Do not publish to npm
+
+This repository is private (`AlconicLLC/clio-mcp`). Releases are git tags and GitHub Releases only.
+
+- Never run `npm publish`, and never publish `@oktopeak/clio-mcp` or any other package from this fork.
+- `package.json` stays `"private": true`. Do not remove it.
+- Keep saying the version is not published to npm in GitHub Release notes.
+- The public npm package `@oktopeak/clio-mcp` belongs to Oktopeak. Do not treat a version here as something to upload there.
