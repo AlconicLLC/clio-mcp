@@ -5,7 +5,7 @@
 
 [![Connect Claude to Clio for the whole law firm, 24-second video](docs/own-your-clio-video.jpg)](https://oktopeak.com/clio-mcp/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=video#video)
 
-*Twenty-four seconds on what the connector does for a whole firm: runs in your own cloud, each person signs in with their own Clio login, one audit log, no monthly fee. [Watch it](https://oktopeak.com/clio-mcp/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=video#video).*
+*Twenty-six seconds on what the connector does for a whole firm: runs in your own cloud, each person signs in with their own Clio login, one audit log, one automation built each month, $300 a month flat. [Watch it](https://oktopeak.com/clio-mcp/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=video#video).*
 
 Open-source Model Context Protocol (MCP) connector that lets Claude read live data from [Clio](https://www.clio.com) (matters, custom fields, notes, contacts, documents, folders, tasks, calendar, and billing) without copying client information into chat windows. Built for law firms that care about attorney-client privilege, ABA Opinion 512 compliance, and keeping AI workflows inside their existing practice management stack.
 
@@ -18,7 +18,7 @@ Open-source Model Context Protocol (MCP) connector that lets Claude read live da
 >
 > The README below assumes someone comfortable editing a JSON config file. If that's not you or your team, we deploy this for law firms: scoped credentials, audit log wired in, one custom workflow, training. A simpler one-command installer is also planned for v0.2.
 >
-> → **[See Guided MCP Setup](https://oktopeak.com/services/mcp-guided-setup/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-svc)**, or [book a 30-min call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-call)
+> → **Whole firm? The Firm Plan: $300 a month.** Set up in your own cloud, every attorney signs in with their own login, one audit log, one automation built for you each month, no setup fee, cancel any time. → [oktopeak.com/firm-plan/](https://oktopeak.com/firm-plan/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-firmplan), or [book a 30-min call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-call)
 
 **Jump to:** [Demo](#demo) · [Setup](#setup) · [Available tools](#available-tools) · [Security & compliance](#compliance--security) · [Need it deployed for you?](#need-more-than-the-connector)
 
@@ -96,7 +96,7 @@ If you installed this connector via the Clio App Directory's one-click install i
 
 Full data-flow documentation for security reviewers, including a sequence diagram and what the broker persists versus never persists, is in the token broker's repository: [`docs/DATA_FLOW.md`](https://github.com/oktopeak/clio-mcp-backend/blob/main/docs/DATA_FLOW.md).
 
-Everything else — local AES-256-GCM token encryption, the audit log, and the 26 tools — is identical to the BYOC setup. Note that Clio's OAuth doesn't support requesting a narrower scope per login; the permissions your token carries are whatever the connecting Clio application was granted when it was registered in the Clio Developer Portal. For the listed app, that registration is kept to the minimum permission set the 26 tools need — the same principle you'd apply yourself when registering your own app for the BYOC setup. See [Option C](#option-c--one-click-via-clio-app-directory) below for the resulting Claude Desktop config.
+Everything else — local AES-256-GCM token encryption, the audit log, and the 37 tools — is identical to the BYOC setup. Note that Clio's OAuth doesn't support requesting a narrower scope per login; the permissions your token carries are whatever the connecting Clio application was granted when it was registered in the Clio Developer Portal. For the listed app, that registration is kept to the minimum permission set the 37 tools need — the same principle you'd apply yourself when registering your own app for the BYOC setup. See [Option C](#option-c--one-click-via-clio-app-directory) below for the resulting Claude Desktop config.
 
 ---
 
@@ -382,7 +382,7 @@ You should see your Clio user ID and token expiry time.
 >
 > If the five steps above look like too much, we can deploy it in your firm for you: scoped OAuth credentials, audit log wired into your stack, one custom workflow designed with your team, and training. Most law firms find this is the faster path.
 >
-> → **[See Guided MCP Setup](https://oktopeak.com/services/mcp-guided-setup/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-svc)**, or [book a 30-min scoping call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-call)
+> → **Whole firm? The Firm Plan: $300 a month.** Set up in your own cloud, every attorney signs in with their own login, one audit log, one automation built for you each month, no setup fee, cancel any time. → [oktopeak.com/firm-plan/](https://oktopeak.com/firm-plan/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-firmplan), or [book a 30-min scoping call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=mid-tip-call)
 
 ---
 
@@ -648,13 +648,11 @@ The open-source connector handles about 20% of what most firms eventually want f
 
 We help two ways, depending on your scope:
 
-→ **Guided MCP Setup**: We deploy the connector in your firm with scoped credentials, audit log wired into your stack, a custom workflow designed with your team, and training. Scope and pricing tailored to your firm.
-  → [oktopeak.com/services/mcp-guided-setup/](https://oktopeak.com/services/mcp-guided-setup/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=footer-svc-guided)
+→ **Whole firm? The Firm Plan: $300 a month.** Set up in your own cloud, every attorney signs in with their own login, one audit log, one automation built for you each month, no setup fee, cancel any time. → [oktopeak.com/firm-plan/](https://oktopeak.com/firm-plan/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=footer-firmplan)
 
 → **Legal AI Integration**: For multi-workflow builds, document automation, intake automation, custom AI agents, and full compliance architecture across your stack.
   → [oktopeak.com/services/legal-ai-integration/](https://oktopeak.com/services/legal-ai-integration/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=footer-svc-legal-ai)
 
-→ **Firm-wide deployment:** rolling Claude + this connector out to a whole firm (Claude Cowork, multi-user, security review)? See [Firm Deployment](https://oktopeak.com/services/firm-deployment/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=footer-svc-firm-deployment).
 
 ABA Opinion 512 compliant from day one. Want a polished overview of this connector with video demo and FAQ?
 → [oktopeak.com/clio-mcp/](https://oktopeak.com/clio-mcp/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=footer-hub)
@@ -698,7 +696,7 @@ We're a 7-person in-house product team building AI solutions for regulated indus
 
 ## Using the connector as a library
 
-Everything the two transports use is exported from `@oktopeak/clio-mcp/lib`, so a service can run the same 26 tools inside its own server: its own login, its own token store, its own audit store. The public npm package and the local install are unchanged; this is the seam a hosting service builds on.
+Everything the two transports use is exported from `@oktopeak/clio-mcp/lib`, so a service can run the same 37 tools inside its own server: its own login, its own token store, its own audit store. The public npm package and the local install are unchanged; this is the seam a hosting service builds on.
 
 ```ts
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
