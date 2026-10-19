@@ -4,6 +4,50 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-19
+
+### Added
+
+- `npx @oktopeak/clio-mcp auth` and `npx @oktopeak/clio-mcp export --out <folder>`:
+  read your whole Clio account out as data files and a folder tree. Matters,
+  contacts, users, practice areas, custom field definitions, matter stages,
+  relationships, tasks, calendar entries, notes, time and expense entries,
+  bills, folders and documents are written to `data/<type>.jsonl` and
+  `data/<type>.csv`; every document is downloaded into
+  `matters/<number> - <client>/` mirroring the Clio folder structure. The
+  export is read-only, never opens a browser, and runs under your own Clio app.
+  Running the package with no command still starts the connector exactly as
+  before.
+- Export options: `--since`, `--only`, `--no-documents`, `--rate` (default 0.8
+  requests a second), `--concurrency` (default 3, max 8), `--resume` and
+  `--dry-run`. Exit codes: 0 done, 1 done with errors or incomplete, 2 bad
+  usage, 3 not logged in or login expired, 4 interrupted (resumable), 5 fatal.
+- The position is saved after every page. Killing the process and running with
+  `--resume` continues exactly where it stopped with no duplicate rows, and a
+  half-downloaded file never carries its final name.
+- `REPORT.md` states what was exported, what could not be verified, what was
+  skipped and why, and groups errors by type. An export is only called
+  COMPLETE when every required record type matches the count Clio gave at the
+  start.
+- Audit entries for the export (source `export`) carry record types, phases
+  and counts only.
+
+### Changed
+
+- The Clio client can be configured for long-running reads (request rate,
+  retries of server and network errors on GET, request timeout). It is off
+  unless the export turns it on, so the connector behaves as before.
+
+### Notes
+
+- Not exported in this version: ledger reports (trust ledger, client ledger,
+  billing history, accounts receivable, work in progress), bill PDFs as Clio
+  renders them, and original email files.
+- Documents that belong to no matter are detected by comparing counts and
+  reported as NOT ENUMERATED when they exist; they are not exported yet.
+- The export has been verified against a local fake Clio. Behaviour against
+  live accounts is recorded in `docs/export-probe-results.md`.
+
 ## [2.4.0] - 2026-10-01
 
 ### Added

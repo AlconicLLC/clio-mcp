@@ -168,6 +168,8 @@ export const AUDIT_ARG_ALLOWLIST: RedactPolicy = {
   get_user: ["user_id"],
   // audit
   export_audit_log: ["date_from", "date_to", "matter_id", "limit", "offset"],
+  // the export command (not an MCP tool): record types and counts only, never ids, names or paths
+  export: ["type", "phase", "pages", "files", "bytes", "since", "dry_run"],
 };
 
 function redactSecretsDeep(value: unknown): unknown {

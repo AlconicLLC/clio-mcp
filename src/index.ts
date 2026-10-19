@@ -31,7 +31,7 @@ async function main() {
 
     const mode = (process.env.TRANSPORT ?? "http").toLowerCase();
 
-    // READ_ONLY=true leaves the 9 write tools unregistered on either transport.
+    // READ_ONLY=true leaves the write tools unregistered on either transport.
     const { registerAllTools, isReadOnlyEnv, WRITE_TOOLS } = await import("./tools/index.js");
     const readOnly = isReadOnlyEnv();
     if (readOnly) {
@@ -63,7 +63,18 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error("Fatal error in main():", error);
-    process.exit(1);
-});
+const subcommand = process.argv[2];
+if (subcommand === "auth" || subcommand === "export") {
+    import("./cli/index.js")
+        .then(({ runCli }) => runCli(process.argv.slice(2)))
+        .then((code) => process.exit(code))
+        .catch((error) => {
+            console.error(`Fatal error: ${error instanceof Error ? error.message : "unknown error"}`);
+            process.exit(5);
+        });
+} else {
+    main().catch((error) => {
+        console.error("Fatal error in main():", error);
+        process.exit(1);
+    });
+}

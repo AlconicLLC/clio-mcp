@@ -32,6 +32,10 @@ function collectSchemaKeys(): Record<string, string[]> {
   return keys;
 }
 
+/** Audit sources that are not MCP tools, so they have no inputSchema to check against. */
+const NON_TOOL_AUDIT_SOURCES = new Set(["oauth_callback", "export"]);
+const EXPORT_AUDIT_KEYS = ["type", "phase", "pages", "files", "bytes", "since", "dry_run"];
+
 describe("AUDIT_ARG_ALLOWLIST", () => {
   const schemaKeys = collectSchemaKeys();
 
@@ -44,7 +48,7 @@ describe("AUDIT_ARG_ALLOWLIST", () => {
 
   it("only lists keys that exist in the tool's real inputSchema", () => {
     for (const [tool, allowed] of Object.entries(AUDIT_ARG_ALLOWLIST)) {
-      if (tool === "oauth_callback") continue;
+      if (NON_TOOL_AUDIT_SOURCES.has(tool)) continue;
       expect(schemaKeys[tool], `no registrar produced "${tool}"`).toBeDefined();
       for (const k of allowed) {
         // Derived summary keys are not inputs by construction; they get their own
@@ -69,6 +73,18 @@ describe("AUDIT_ARG_ALLOWLIST", () => {
     for (const k of DERIVED_AUDIT_KEYS) {
       expect(used, `${k} is exempted but no tool logs it; drop the exemption`).toContain(k);
     }
+  });
+
+  it("allows the export source only counts, record types and flags", () => {
+    expect([...AUDIT_ARG_ALLOWLIST.export].sort()).toEqual([...EXPORT_AUDIT_KEYS].sort());
+    for (const k of AUDIT_ARG_ALLOWLIST.export) {
+      expect(FREE_TEXT_KEYS, `export.${k} is free text and must not be logged`).not.toContain(k);
+    }
+  });
+
+  it("redacts anything else passed to the export source", () => {
+    const out = redactAuditArgs("export", { type: "matters", phase: "fetch", pages: 3, matter_id: 9, path: "a/b" });
+    expect(out).toEqual({ type: "matters", phase: "fetch", pages: 3, matter_id: REDACTED, path: REDACTED });
   });
 
   it("never allowlists a free-text key for any tool", () => {

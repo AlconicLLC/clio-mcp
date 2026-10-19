@@ -9,8 +9,17 @@ import { getClioApiBaseUrl } from "./clioRegion.js";
  */
 async function resolveAccessToken(): Promise<string> {
   const ctx = requireSessionContext();
-  if (ctx) return ctx.getAccessToken();
-  return getValidAccessToken();
+  try {
+    if (ctx) return await ctx.getAccessToken();
+    return await getValidAccessToken();
+  } catch (err) {
+    if (activeConfig) throw new ClioAuthExpiredError();
+    throw err;
+  }
+}
+
+export async function getAccessToken(): Promise<string> {
+  return resolveAccessToken();
 }
 
 export class ClioApiError extends Error {
@@ -37,7 +46,7 @@ const RATE_LIMIT_THROTTLE_THRESHOLD = 3;
 
 /** Full-jitter exponential backoff (upper-half jitter avoids retry storms across sessions). */
 function jitteredDelay(attempt: number): number {
-  const exp = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_SINGLE_DELAY_MS);
+  const exp = Math.min((activeConfig?.baseDelayMs ?? BASE_DELAY_MS) * 2 ** attempt, MAX_SINGLE_DELAY_MS);
   return exp / 2 + Math.random() * (exp / 2);
 }
 
@@ -54,7 +63,196 @@ function parseRetryAfterMs(value: string): number | null {
   return null;
 }
 
+export interface ClioClientConfig {
+  requestsPerSecond: number;
+  maxAttempts: number;
+  timeoutMs: number;
+  signal?: AbortSignal;
+  baseDelayMs?: number;
+}
+
+export type ClioFailureKind = "rate_limit" | "server" | "network" | "timeout";
+
+export class ClioAuthExpiredError extends Error {
+  constructor() {
+    super("The Clio login expired or was revoked");
+    this.name = "ClioAuthExpiredError";
+  }
+}
+
+export class ClioAbortedError extends Error {
+  constructor() {
+    super("The request was aborted");
+    this.name = "ClioAbortedError";
+  }
+}
+
+export class ClioRequestFailure extends Error {
+  constructor(
+    public readonly status: number | null,
+    public readonly kind: ClioFailureKind,
+    public readonly attempts: number
+  ) {
+    super(`Clio request failed (${kind}${status ? ` ${status}` : ""}) after ${attempts} attempt(s)`);
+    this.name = "ClioRequestFailure";
+  }
+}
+
+let activeConfig: ClioClientConfig | null = null;
+let nextSlotAt = 0;
+let pausedUntil = 0;
+
+/**
+ * Opt-in hardening for long-running readers (the export). With no config the client behaves
+ * exactly as before; with one, every request waits for a rate slot and failed GETs are retried.
+ */
+export function configureClioClient(config: ClioClientConfig | null): void {
+  activeConfig = config;
+  nextSlotAt = 0;
+  pausedUntil = 0;
+}
+
+export function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new ClioAbortedError());
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new ClioAbortedError());
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+export async function acquireRequestSlot(): Promise<void> {
+  const config = activeConfig;
+  if (!config) return;
+  const interval = 1000 / config.requestsPerSecond;
+  const now = Date.now();
+  const start = Math.max(now, nextSlotAt, pausedUntil);
+  nextSlotAt = start + interval;
+  if (start > now) await sleepAbortable(start - now, config.signal);
+}
+
+export function pauseRequests(ms: number): void {
+  pausedUntil = Math.max(pausedUntil, Date.now() + ms);
+}
+
+export function retryDelayMs(attempt: number, retryAfterHeader: string | null): number {
+  const retryAfterMs = retryAfterHeader ? parseRetryAfterMs(retryAfterHeader) : null;
+  return retryAfterMs !== null ? Math.min(retryAfterMs, MAX_SINGLE_DELAY_MS) : jitteredDelay(attempt);
+}
+
+function attemptGuard(config: ClioClientConfig, extra: AbortSignal | null | undefined) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, config.timeoutMs);
+  const forward = () => controller.abort();
+  const sources = [config.signal, extra ?? undefined].filter((s): s is AbortSignal => s !== undefined);
+  for (const source of sources) {
+    if (source.aborted) controller.abort();
+    else source.addEventListener("abort", forward, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    externallyAborted: () => sources.some((s) => s.aborted),
+    dispose: () => {
+      clearTimeout(timer);
+      for (const source of sources) source.removeEventListener("abort", forward);
+    },
+  };
+}
+
+function errorMessageFromBody(raw: string): string {
+  let msg = raw;
+  try {
+    const json = JSON.parse(raw);
+    if (typeof json.message === "string") {
+      msg = json.message;
+    } else if (typeof json.error === "string") {
+      msg = json.error;
+    } else if (json.error && typeof json.error === "object") {
+      msg = json.error.message ?? JSON.stringify(json.error);
+    } else if (Array.isArray(json.errors)) {
+      msg = json.errors.map((e: any) => (typeof e === "string" ? e : e.message ?? JSON.stringify(e))).join("; ");
+    } else {
+      msg = JSON.stringify(json);
+    }
+  } catch { /* use raw text */ }
+  return msg;
+}
+
+async function clioFetchConfigured(url: string, init: RequestInit): Promise<Response> {
+  const config = activeConfig!;
+  const retryable = (init.method ?? "GET").toUpperCase() === "GET";
+  const manualRedirect = init.redirect === "manual";
+  let lastStatus: number | null = null;
+  let lastKind: ClioFailureKind = "network";
+
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    await acquireRequestSlot();
+    if (config.signal?.aborted || init.signal?.aborted) throw new ClioAbortedError();
+    const guard = attemptGuard(config, init.signal);
+    let waitMs = 0;
+    try {
+      const res = await fetch(url, { ...init, signal: guard.signal });
+      if (manualRedirect && res.ok) return res;
+      const body = [204, 205, 304].includes(res.status) ? null : await res.arrayBuffer();
+      const buffered = new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+
+      if (res.status === 401) throw new ClioAuthExpiredError();
+      if (res.ok || (manualRedirect && res.status >= 300 && res.status < 400)) return buffered;
+
+      if (res.status === 429) {
+        lastStatus = 429;
+        lastKind = "rate_limit";
+        pauseRequests(retryDelayMs(attempt - 1, res.headers.get("Retry-After")));
+      } else if (res.status >= 500 && retryable) {
+        lastStatus = res.status;
+        lastKind = "server";
+        waitMs = retryDelayMs(attempt - 1, res.headers.get("Retry-After"));
+      } else {
+        const message = errorMessageFromBody(new TextDecoder().decode(body ?? new ArrayBuffer(0)));
+        throw new ClioApiError(res.status, `Clio API error ${res.status}: ${message}`);
+      }
+    } catch (err) {
+      if (err instanceof ClioApiError || err instanceof ClioAuthExpiredError) throw err;
+      if (guard.externallyAborted()) throw new ClioAbortedError();
+      lastStatus = null;
+      lastKind = guard.timedOut() ? "timeout" : "network";
+      if (!retryable) throw new ClioRequestFailure(null, lastKind, attempt);
+      waitMs = retryDelayMs(attempt - 1, null);
+    } finally {
+      guard.dispose();
+    }
+
+    if (attempt < config.maxAttempts && waitMs > 0) {
+      await sleepAbortable(waitMs, config.signal);
+    }
+  }
+  throw new ClioRequestFailure(lastStatus, lastKind, config.maxAttempts);
+}
+
+/** Authenticated GET to the Clio API host only; the bearer token never leaves that host. */
+export async function clioRawGet(target: string, opts: { redirect?: RequestInit["redirect"] } = {}): Promise<Response> {
+  const apiBase = getBase();
+  const url = target.startsWith("http") ? target : `${apiBase}${target}`;
+  if (new URL(url).host !== new URL(apiBase).host) {
+    throw new Error("Refusing to send the Clio login to a host other than the Clio API.");
+  }
+  const token = await resolveAccessToken();
+  return clioFetch(url, { method: "GET", redirect: opts.redirect, headers: { Authorization: `Bearer ${token}` } });
+}
+
 async function clioFetch(url: string, init: RequestInit): Promise<Response> {
+  if (activeConfig) return clioFetchConfigured(url, init);
   let totalWaited = 0;
   for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
     const res = await fetch(url, init);
@@ -90,22 +288,7 @@ async function clioFetch(url: string, init: RequestInit): Promise<Response> {
     }
 
     if (!res.ok) {
-      const raw = await res.text();
-      let msg = raw;
-      try {
-        const json = JSON.parse(raw);
-        if (typeof json.message === "string") {
-          msg = json.message;
-        } else if (typeof json.error === "string") {
-          msg = json.error;
-        } else if (json.error && typeof json.error === "object") {
-          msg = json.error.message ?? JSON.stringify(json.error);
-        } else if (Array.isArray(json.errors)) {
-          msg = json.errors.map((e: any) => (typeof e === "string" ? e : e.message ?? JSON.stringify(e))).join("; ");
-        } else {
-          msg = JSON.stringify(json);
-        }
-      } catch { /* use raw text */ }
+      const msg = errorMessageFromBody(await res.text());
       throw new ClioApiError(res.status, `Clio API error ${res.status} on ${url}: ${msg}`);
     }
     return res;

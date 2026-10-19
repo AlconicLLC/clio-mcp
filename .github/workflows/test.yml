@@ -25,4 +25,5 @@ jobs:
       - run: npm run build
       - run: npx tsc --noEmit
       - run: npm test
+      - run: node scripts/smoke-export.mjs
       - run: npm run verify:no-secrets

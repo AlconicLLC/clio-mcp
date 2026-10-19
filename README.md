@@ -20,7 +20,7 @@ Open-source Model Context Protocol (MCP) connector that lets Claude read live da
 >
 > → **Whole firm? The Firm Plan: $300 a month.** Set up in your own cloud, every attorney signs in with their own login, one audit log, one automation built for you each month, no setup fee, cancel any time. → [oktopeak.com/firm-plan/](https://oktopeak.com/firm-plan/?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-firmplan), or [book a 30-min call](https://calendly.com/office-oktopeak/30min?utm_source=github&utm_medium=readme&utm_campaign=clio-mcp&utm_content=top-tip-call)
 
-**Jump to:** [Demo](#demo) · [Setup](#setup) · [Available tools](#available-tools) · [Security & compliance](#compliance--security) · [Need it deployed for you?](#need-more-than-the-connector)
+**Jump to:** [Demo](#demo) · [Setup](#setup) · [Available tools](#available-tools) · [Export your whole account](#exporting-your-whole-account) · [Security & compliance](#compliance--security) · [Need it deployed for you?](#need-more-than-the-connector)
 
 ---
 
@@ -43,6 +43,10 @@ Watch Claude pull live data from Clio in under a minute (matters, contacts, task
 → [Subscribe to Oktopeak Builder Notes](https://tally.so/r/q4kzk9?source=clio-readme). Short emails, easy unsubscribe.
 
 ---
+
+## New in 2.5.0: export your whole account
+
+`npx @oktopeak/clio-mcp export --out <folder>` copies every matter, contact, note, task, calendar entry, time entry, expense, bill and document out of Clio onto your own computer, read-only, under your own Clio app. Run `npx @oktopeak/clio-mcp auth` first. See [Exporting your whole account](#exporting-your-whole-account).
 
 ## Upgrading to 2.2.0
 
@@ -68,7 +72,7 @@ ABA Opinion 512 (2023) requires attorneys using AI tools to understand how those
 
 - **Audit log.** Every tool call (every time Claude queries Clio on your behalf) is appended to a local log file at `~/.clio-mcp/audit.log`. Each entry records the timestamp, which tool was invoked, what arguments were passed, whether it succeeded, and the Clio user ID. The log is stored on your machine, not in any cloud service. It is append-only and never purged by the software, so your firm retains a complete record of AI-initiated data access.
 
-- **No data retention by the connector.** The connector does not store matter data, client names, or any Clio content. It fetches from the API and passes results to Claude. The only thing persisted locally is your authentication token, and that is encrypted (see below).
+- **No data retention by the connector.** The connector itself does not store matter data, client names, or any Clio content. It fetches from the API and passes results to Claude. The only thing it persists locally is your authentication token, and that is encrypted (see below). The separate `export` command is the one exception, by design: it writes a local copy of your Clio data to the folder you choose, and nothing else does.
 
 - **Twelve write tools, all logged, all optional.** The connector can create matters, custom fields, notes, tasks, folders, calendar entries, time entries and activities, update matters and tasks, complete tasks, and upload documents. It never deletes anything and never touches contacts or billing records. Every write is recorded in the audit log, and `READ_ONLY=true` removes all twelve write tools from the server entirely (see [Read-only mode](#read-only-mode)), so a firm can start with read access and turn writes on when it has decided to.
 
@@ -133,7 +137,7 @@ The connector's own no-retention posture (it stores nothing but your encrypted t
 
 The connector ships as `@oktopeak/clio-mcp` on npm. Like every npm package, the published version can be updated at any time by the maintainer. Standard hygiene applies:
 
-- **Pin versions in production.** Use an exact version such as `@oktopeak/clio-mcp@2.2.0` (the current release in `package.json`) rather than a range like `^2.0.0`. Audit before upgrading.
+- **Pin versions in production.** Use an exact version such as `@oktopeak/clio-mcp@2.5.0` (the current release in `package.json`) rather than a range like `^2.0.0`. Audit before upgrading.
 - **Review the diff.** Every release is a tagged commit on GitHub. Verify changes before pulling a new version into a firm-wide deployment.
 - **Build from source.** If your firm requires it, clone the repo, audit the code, run from your own build artifact. We do not gate any feature behind the npm distribution.
 - **Maintainers.** Published by [Oktopeak](https://oktopeak.com), a public team with public commits and a public npm publisher account. Not anonymous. We respond to security reports at `office@oktopeak.com`.
@@ -145,6 +149,7 @@ To pre-empt a common misread:
 - **OAuth tokens** (your Clio access + refresh token) are encrypted with AES-256-GCM at rest in `~/.clio-mcp/tokens.enc`. They cannot be read without the encryption key.
 - **The encryption key itself** is auto-generated on first run and stored in the OS keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service). It never touches the filesystem in plaintext. For CI/headless installs without a keychain, you can override this by setting `ENCRYPTION_KEY` as a 64-character hex string in your environment.
 - **Audit log entries** at `~/.clio-mcp/audit.log` are not encrypted. They contain metadata (timestamps, tool names, parameters with secrets redacted), not Clio content.
+- **The export folder** written by `export` is not encrypted by the connector. It holds your Clio data in plaintext, including client names in `checkpoint/`. Keep it on an encrypted disk.
 
 ---
 
@@ -218,7 +223,7 @@ The connector retrieves live data from Clio on every request. Nothing is cached 
 
 Before you begin, make sure you have:
 
-- **Node.js 18 or later**: [nodejs.org/en/download](https://nodejs.org/en/download)
+- **Node.js 20 or later**: [nodejs.org/en/download](https://nodejs.org/en/download)
 - **Claude Desktop**: [claude.ai/download](https://claude.ai/download)
 - **A Clio account** with permission to create developer applications (ask your Clio administrator if you are unsure)
 
@@ -509,6 +514,115 @@ Claude selects and calls these tools automatically based on your questions. You 
 
 ---
 
+## Exporting your whole account
+
+The same package can copy everything out of Clio onto your own computer: every matter, contact, note, task, calendar entry, time entry, expense and bill as data files, and every document as a file in a folder tree a paralegal can navigate. Use it as a backup, or before you cancel. It only reads from Clio and never writes anything back.
+
+```bash
+npx @oktopeak/clio-mcp auth
+npx @oktopeak/clio-mcp export --out ./clio-export
+```
+
+`auth` opens your browser, saves the login and prints who logged in and when the token expires. `export` never opens a browser; without a saved login it stops with "run auth first". Both commands need the same environment variables as the connector (`CLIO_CLIENT_ID`, `CLIO_CLIENT_SECRET`, and `CLIO_REGION` if you are not on `us`) and Node.js 20 or later. With `npx` there is no `.env` file to read, so set them in your shell:
+
+```bash
+# macOS / Linux
+export CLIO_CLIENT_ID=your_client_id CLIO_CLIENT_SECRET=your_client_secret CLIO_REGION=eu
+```
+
+```powershell
+# Windows PowerShell
+$env:CLIO_CLIENT_ID = "your_client_id"
+$env:CLIO_CLIENT_SECRET = Read-Host "Clio client secret"
+$env:CLIO_REGION = "eu"
+```
+
+Export before you cancel. Run `--dry-run` first: it only counts records and documents and writes a `REPORT.md` with an estimate of the time and disk space the real run needs.
+
+### Options
+
+| Option | What it does |
+|---|---|
+| `--out <folder>` | Required. The folder must be empty or a previous export. |
+| `--since <date>` | Only records changed after this date, where Clio supports it (see below). |
+| `--only <list>` | Comma separated record types, for example `matters,folders,documents`. `document_versions` can only be named together with `documents`. |
+| `--no-documents` | Skip documents and document files. |
+| `--rate <n>` | Requests per second. Default 0.8, at most 10. Clio allows about 50 requests a minute, so values above about 0.8 will be throttled by Clio. |
+| `--concurrency <n>` | Parallel downloads. Default 3, at most 8. |
+| `--resume` | Continue a previous run in the same folder. |
+| `--dry-run` | Count only. Writes `REPORT.md` and nothing else to the folder. |
+| `--help` | Show the options. |
+
+Record types: `matters`, `contacts`, `users`, `practice_areas`, `custom_fields`, `matter_stages`, `relationships`, `tasks`, `calendar_entries`, `notes`, `time_entries`, `expenses`, `bills`, `folders`, `documents`. Only when named in `--only`: `document_versions`, `communications`, `allocations`, `trust_line_items`, `bank_transactions`. Optional types that Clio refuses are reported as "not available", not as errors.
+
+### What comes out
+
+```
+clio-export/
+  data/<type>.jsonl            raw records, one per line
+  data/<type>.csv              the same records for Excel
+  matters/<number> - <client>/ documents, mirroring the Clio folder structure
+  checkpoint/                  where the export saves its place
+  manifest.json
+  errors.jsonl                 failures: record type, status code and kind only
+  REPORT.md                    what was exported, what was not, and why
+```
+
+Document files are named `<original name> [<document id>].<extension>`, made safe for Windows (no illegal characters, reserved names or over-long paths). The original names and folder paths are listed in `data/documents.csv`. The latest version of each document is downloaded; its version id is in the data. `--only document_versions` also saves the version history as data.
+
+Names that Windows cannot store (reserved names such as `CON`, trailing dots or spaces, forbidden characters) are still handled by the export: `CON.txt` becomes `_CON [id].txt`. In live testing on an EU test account Clio refused to upload a file whose name ends with a dot, so such names should not occur in exported documents.
+
+Empty folders are listed in `folders.jsonl` but are not created on disk; only folders that contain documents appear in the folder tree.
+
+The CSV files open cleanly in Excel. Text that starts with `=`, `+`, `-` or `@` gets a leading apostrophe in the CSV so Excel does not run it as a formula; numbers are never changed, and the `.jsonl` files always hold the exact values.
+
+### What is not included
+
+- Ledger reports (trust ledger, client ledger, billing history, accounts receivable, work in progress). `--only ledger_reports` says so and exports nothing.
+- Bill PDFs as Clio renders them. Bills are exported as data.
+- Original email files.
+- Documents that belong to no matter. The export compares its document count with the account's total and says in `REPORT.md` how many were left out; it never claims a complete export when it could not verify one.
+- Custom fields on accounts where Clio refuses to return them. The export continues without them and `REPORT.md` says so. A run with an unreadable required type is reported as INCOMPLETE. If you see this, check the permissions of your Clio developer app (see Troubleshooting).
+
+Known limitation: expenses are read per Clio activity type (`ExpenseEntry`, `HardCostEntry`, `SoftCostEntry`), and each row carries its type. If Clio also lists hard and soft cost entries under `ExpenseEntry`, those rows would appear twice in `data/expenses.*`. This has not been seen: no account we tested has hard or soft cost entries. Rows can be told apart by their `id`.
+
+Tested: the export was run live on a Clio EU account, including a 5 MB document, names with accents, double spaces and special characters, a refresh run (0 files downloaded again) and a resume after an interrupt.
+
+### How long it takes
+
+Clio allows about 50 requests per minute per token during business hours. The default of 0.8 requests per second is 48 a minute, which stays under that limit. Every page of 200 records is one request, every document is at least one request more, and the folder tree and each matter's documents need a request each. A firm with 100,000 documents therefore needs well over a day. Large firms should start the export on a Friday and let it run over the weekend. `--dry-run` writes the number of requests and the time for your account to `REPORT.md`. The dry run itself has to look at every matter, at about 1.3 requests per matter, so at 0.8 requests per second it takes roughly 10 minutes for 400 matters. Downloads from Clio's storage link do not count against the limit.
+
+### Stopping, resuming and running again
+
+The export saves its position after every page. Press Ctrl-C (or kill the process) and run the same command with `--resume`: it continues where it stopped with no duplicate rows. Ctrl-C exits with code 4. Files that were half downloaded are discarded and fetched again; a file never carries its final name until it is complete.
+
+The list of matters is built once at the start and is not rebuilt when you resume. Matters created in Clio after the first run are only picked up by running again **without** `--resume`. That second kind of run is a refresh: it starts the data files over, skips every document that is already on disk with the same size and version, moves a document if its matter was renamed, and never deletes anything. Files that were deleted in Clio stay on disk and are counted as orphans in `REPORT.md`.
+
+If the login expires during a long run, the export saves its place and exits with code 3. Run `auth` again, then repeat the same command with `--resume`.
+
+### Using --since
+
+A date such as `2026-03-10` is read as 00:00:00 UTC on that date minus one day, so the filter includes a little too much rather than missing records. A full ISO datetime with an offset (`2026-03-10T09:00:00+02:00`) is used as given. The filter is applied to the record types where Clio supports `updated_since`; the others are exported in full and `REPORT.md` lists them. Folders are always exported in full, because the folder tree is needed for document paths. Documents are checked for every matter, not only matters that changed. Calendar entries are fetched in yearly chunks starting at the year of the date (or 1990 without `--since`), so an entry that starts before that year is not included.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Done and complete |
+| 1 | Done with errors, or the report says INCOMPLETE |
+| 2 | Bad usage, or `--resume` refused (different options or account, or the saved index changed) |
+| 3 | Not logged in, or the login expired |
+| 4 | Interrupted; resumable with `--resume` |
+| 5 | Fatal error |
+
+### Privacy and safety
+
+- The export never writes to Clio, and the Clio login is sent only to the Clio API, never to the storage link Clio redirects document downloads to.
+- Logs, progress lines, `errors.jsonl` and audit entries carry record types, ids, counts and status codes only; never names, document titles, file paths or client values. Audit entries for the export (source `export`) are written to `~/.clio-mcp/audit.log` in your home folder, never into the export folder, and dry runs write them too.
+- **The export folder holds confidential legal data in plaintext. Store it on an encrypted disk.** The `checkpoint/` folder also holds client names (the matter index and the per-matter document records), so it needs the same protection.
+- Memory stays flat with the size of the firm: one page at a time. The folder tree is the exception: its folder ids, parents and names are kept in memory while documents are downloaded, roughly 100 bytes per folder.
+- Run `--dry-run` in a fresh folder: in a folder that already holds an export it replaces that export's `REPORT.md`.
+
 ## Resources
 
 The connector also exposes two MCP resources: read-only content that compatible clients (including Claude Desktop) can surface automatically at the start of a session.
@@ -597,6 +711,16 @@ Each entry contains:
 | `matter_id` | Present for matter-specific queries |
 | `result_count` | Present for list / export tools: number of records returned |
 
+### Export entries
+
+The `export` command writes its own entries to the same file, with the source `export` in the `tool` field: one per record type per phase (`count` for a dry run, `fetch`, `download`). They carry only the record type, the phase and counts, and are written to `~/.clio-mcp/audit.log` in your home folder, never into the export folder. Dry runs write entries too, marked `"dry_run":true`.
+
+```json
+{"timestamp":"2026-10-19T12:00:00.000Z","session_id":"3f2e9b1c-...","tool":"export","args":{"type":"documents","phase":"download","pages":0,"files":120,"bytes":48211904,"since":"2026-03-09T00:00:00.000Z","dry_run":false},"outcome":"success","clio_user_id":"10023","result_count":120}
+```
+
+The allowed keys are `type`, `phase`, `pages`, `files`, `bytes`, `since` and `dry_run`. No matter ids, names, document titles or paths are ever recorded, and a test enforces it.
+
 ### What is never written to the log
 
 Arguments are logged by allowlist, not by denylist. For every tool only ids, limits, dates, page tokens, enums and booleans are recorded verbatim; any other argument that was passed is replaced by `"[redacted]"`. Concretely, the log never contains: contact search queries (`search_contacts.query`), document searches (`list_documents.query`), note subjects or bodies, task names or descriptions, calendar summaries, descriptions or locations, matter descriptions or client references, time-entry or activity notes, file paths or file names, or the `list_users` name filter. The full table is `AUDIT_ARG_ALLOWLIST` in `src/utils/auditLog.ts`, and a test fails if a free-text key is ever added to it. Secret-named keys (`access_token`, `client_secret`, `password`, `token`) are masked everywhere, including inside nested objects.
@@ -626,10 +750,10 @@ The `logout` command removes your stored token file but not the encryption key f
 Add `"CLIO_REDIRECT_PORT": "5679"` to the `env` block in your Claude Desktop config, and update your Clio application's redirect URI to `http://127.0.0.1:5679/callback`.
 
 **`list_custom_fields` returns 403 "User is forbidden from taking that action"**
-Some accounts refuse custom field reads even when the connecting user is the account owner and the token works for everything else. When it happens, `/custom_fields.json` returns 403 and the custom field values expanded on matters and contacts come back with an id but no name, type or value, with no error at all. **We still have not reproduced this and the cause is not confirmed** — a live verification pass against a normally-permissioned BYOC developer account (September 2026) got a clean 200 with full data on every call, so this is specific to some other account or permission configuration, not the default path. It is consistent with the connecting Clio user's permission set not covering custom fields, so the first thing to try is having a Clio administrator confirm that user's custom field access and reconnecting (`logout`, then `authenticate`). If that is already in place, please [open an issue](https://github.com/oktopeak/clio-mcp/issues) with your Clio region and the exact response — we would like to get to the bottom of it.
+Some setups refuse custom field reads even when the connecting user is the account owner and the token works for everything else. When it happens, `/custom_fields.json` returns 403 and the custom field values expanded on matters and contacts come back with an id but no name, type or value, with no error at all. We reproduced this on an EU account in October 2026 and fixed it by connecting through a Clio developer app that has the right permissions: with the new app `/custom_fields.json` returned 200 with the field definitions and the values on matters were readable. The same app had also been refused on communications, allocations and bank transactions, which started answering after the change. So the first thing to check is the permissions of the Clio developer app in the Clio developer portal (the app whose client ID you use), then reconnect (`logout`, then `authenticate`). If that is fine, check the connecting Clio user's custom field access with a Clio administrator. If neither explains it, please [open an issue](https://github.com/oktopeak/clio-mcp/issues) with your Clio region and the exact response.
 
 **Custom fields come back with an `id` but `name`, `type` and `value` are `null`**
-Same accounts, same unconfirmed cause, no error this time: Clio drops the expanded attributes silently. The response carries a `custom_fields_warning` when this happens. Treat those fields as unread rather than empty — they are not blank in Clio.
+Same cause, no error this time: Clio drops the expanded attributes silently when the app is not allowed to read custom fields. The response carries a `custom_fields_warning` when this happens. Treat those fields as unread rather than empty; they are not blank in Clio. The `export` command reports the same condition as INCOMPLETE in `REPORT.md`.
 
 **A custom field disappears entirely instead of showing empty**
 This is expected, not a bug: `clear: true` (on `update_matter`'s `custom_field_values`) deletes the value record itself, not just its value. A field that was simply never set still gets an empty placeholder from Clio (and from this connector) with a real id and `value: null`; a field that was explicitly cleared has no record at all until a new value is set, so both this connector's output and Clio's own UI show nothing for it. If you want a field to keep showing as blank, set an empty-equivalent value instead of clearing it.
