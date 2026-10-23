@@ -6,6 +6,19 @@ Alconic versions are `{oktopeak}-alconic.{n}`. The base is Oktopeak's published 
 
 ## [Unreleased]
 
+## [2.4.0-alconic.3] - 2026-10-22
+
+### Security
+- Hono, installed with the MCP SDK, is 4.13.13. The fixed bug lets a crafted
+  path skip middleware in front of `serveStatic`. This server does not serve
+  files that way; HTTP stays on Express.
+- Vite, used only by the test runner, is 8.3.5. The fixed bugs are in the
+  editor launcher on Windows and WSL. A production install does not include
+  Vite.
+
+### Changed
+- The package is marked private, so this fork cannot be published to npm.
+
 ## [2.4.0-alconic.2] - 2026-10-14
 
 ### Security
