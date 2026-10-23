@@ -20,6 +20,7 @@ Only the latest 2.x minor receives security fixes. Upgrade with `npm install -g 
 - The OAuth flow against Clio (state handling, redirect URIs, token exchange).
 - `AUTH_MODE=oauth`: the authorization server Claude signs in through (`/authorize`, `/token`, `/revoke`, the consent page, `/oauth/callback`), the Claude client allowlist, the email-domain and account checks, refresh-token rotation, session-to-user binding, and the encrypted token tables in Postgres.
 - The `READ_ONLY` gate: any path that lets a write tool run while it is on.
+- The `export` command: any path that writes to Clio, sends the Clio login to a host other than the Clio API, or lets a name, document title, file path or client value reach the audit log, the progress output or `errors.jsonl`. Export entries in the audit log have the source `export` and carry record types, phases and counts only. The export folder itself holds the firm's data in plaintext, including client names in `checkpoint/`.
 
 ## What is out of scope
 
