@@ -6,6 +6,22 @@ Alconic versions are `{oktopeak}-alconic.{n}`. The base is Oktopeak's published 
 
 ## [Unreleased]
 
+## [2.5.0-alconic.2] - 2026-10-24
+
+Still based on [oktopeak/clio-mcp](https://github.com/oktopeak/clio-mcp) @ 2.5.0. Not published to npm.
+
+### Security
+- Vitest, used only by the test runner, is 4.1.12. That pulls `@vitest/mocker` 4.1.12, which closes the mock-registration and Windows path checks. A production install does not include Vitest.
+- `body-parser`, used by Express, is 2.4.0. A compressed request with trailing bytes no longer stalls the process. Ordinary JSON bodies are unchanged. On Node versions that support it, a zstd-compressed body is now accepted. `qs` moved from 6.16.0 to 6.16.1 with that upgrade.
+- `fast-uri`, used by Ajv inside the MCP SDK, is 3.1.9. Malformed URIs are rejected instead of rewritten. Clio tool calls do not go through that parser.
+- `ip-address`, used by the hosted rate limits, is 10.7.4. A malformed IPv6 zone is rejected in one pass. Valid client addresses still count the same way.
+- Zod is 4.6.7. An array, set, or map that declares a size bound is rejected before each element is checked.
+
+### Changed
+- The JSON Schema advertised for each tool no longer says `additionalProperties: false`. The server still drops unknown fields before a handler runs, so extra arguments are not sent to Clio.
+- Integer fields in those schemas now declare a safe-integer bound. `get_matter`'s `matter_id` also declares the matching lower bound.
+- Date fields that already required a real calendar date now include that pattern in the advertised schema.
+
 ## [2.5.0-alconic.1] - 2026-10-22
 
 Based on [oktopeak/clio-mcp](https://github.com/oktopeak/clio-mcp) @ 2.5.0.
